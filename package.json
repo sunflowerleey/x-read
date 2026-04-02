@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "quality": "bash scripts/update-quality.sh",
+    "check-layers": "bash scripts/check-layers.sh"
   },
   "dependencies": {
     "@google/genai": "^1.48.0",

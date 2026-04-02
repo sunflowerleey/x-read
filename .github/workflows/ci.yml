@@ -32,6 +32,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Layer guard
+        run: bash scripts/check-layers.sh
+
       - name: Test
         run: npm test -- --reporter=verbose
         env:
