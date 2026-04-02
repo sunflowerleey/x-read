@@ -6,7 +6,9 @@ import DownloadButton from "./DownloadButton";
 import { splitMarkdownIntoBlocks } from "@/lib/splitMarkdown";
 import { alignBlocks } from "@/lib/alignBlocks";
 import { escapeNonHtmlTags } from "@/lib/escapeHtml";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
+
+const REMARK_PLUGINS = [remarkGfm];
 
 interface Props {
   originalMarkdown: string;
@@ -15,12 +17,24 @@ interface Props {
   tweetHandle: string;
 }
 
-function MarkdownBlock({ markdown }: { markdown: string }) {
+const MarkdownBlock = memo(function MarkdownBlock({
+  markdown,
+}: {
+  markdown: string;
+}) {
   const safe = escapeNonHtmlTags(markdown);
   return (
     <article className="prose prose-slate max-w-none prose-headings:scroll-mt-4 prose-img:rounded-lg prose-pre:bg-slate-800">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{safe}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{safe}</ReactMarkdown>
     </article>
+  );
+});
+
+function Spinner({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <div
+      className={`${className} border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin`}
+    />
   );
 }
 
@@ -30,12 +44,9 @@ export default function ContentDisplay({
   isTranslating,
   tweetHandle,
 }: Props) {
-  const hasContent = translatedMarkdown !== null && translatedMarkdown.length > 0;
+  const hasContent =
+    translatedMarkdown !== null && translatedMarkdown.length > 0;
   const isSideBySide = hasContent || isTranslating;
-  const filename = useMemo(
-    () => `tweet-${tweetHandle}-${Date.now()}`,
-    [tweetHandle]
-  );
 
   const alignedPairs = useMemo(() => {
     const enBlocks = splitMarkdownIntoBlocks(originalMarkdown);
@@ -45,7 +56,6 @@ export default function ContentDisplay({
     return alignBlocks(enBlocks, zhBlocks);
   }, [originalMarkdown, translatedMarkdown]);
 
-  // Single column mode (no translation)
   if (!isSideBySide) {
     return (
       <div className="max-w-3xl mx-auto">
@@ -57,31 +67,29 @@ export default function ContentDisplay({
         </div>
         <DownloadButton
           markdown={originalMarkdown}
-          filename={`${filename}-en.md`}
-          label="Download English .md"
+          filename={`tweet-${tweetHandle}-en.md`}
         />
       </div>
     );
   }
 
-  // Side-by-side aligned mode
   return (
     <div>
-      {/* Headers */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-3">
-        <h2 className="text-lg font-semibold text-gray-800">English Original</h2>
+        <h2 className="text-lg font-semibold text-gray-800">
+          English Original
+        </h2>
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-800">中文翻译</h2>
           {isTranslating && (
             <div className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-              <div className="w-3 h-3 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin" />
+              <Spinner className="w-3 h-3 border-blue-300 border-t-blue-600" />
               翻译中...
             </div>
           )}
         </div>
       </div>
 
-      {/* Aligned blocks */}
       <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
         {alignedPairs.map(([enBlock, zhBlock], i) => (
           <div
@@ -98,7 +106,7 @@ export default function ContentDisplay({
                 isTranslating &&
                 enBlock && (
                   <div className="flex items-center gap-2 py-2 text-gray-400 text-sm">
-                    <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                    <Spinner />
                   </div>
                 )
               )}
@@ -107,17 +115,15 @@ export default function ContentDisplay({
         ))}
       </div>
 
-      {/* Download buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
         <DownloadButton
           markdown={originalMarkdown}
-          filename={`${filename}-en.md`}
-          label="Download English .md"
+          filename={`tweet-${tweetHandle}-en.md`}
         />
         {hasContent && !isTranslating && (
           <DownloadButton
             markdown={translatedMarkdown!}
-            filename={`${filename}-zh.md`}
+            filename={`tweet-${tweetHandle}-zh.md`}
             label="Download 中文 .md"
           />
         )}

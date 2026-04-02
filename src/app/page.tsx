@@ -21,11 +21,8 @@ export default function Home() {
     fetchTweet(url.trim());
   }
 
-  const isLoading = status === "fetching" || status === "translating";
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <h1 className="text-2xl font-bold text-gray-900">X-Read</h1>
@@ -36,7 +33,6 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Input */}
         <form onSubmit={handleSubmit} className="flex gap-3 mb-8">
           <input
             type="text"
@@ -62,14 +58,12 @@ export default function Home() {
           </button>
         </form>
 
-        {/* Error */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
             {error}
           </div>
         )}
 
-        {/* Tweet info */}
         {tweetData && (
           <div className="flex items-center gap-3 mb-6 p-4 bg-white rounded-lg border border-gray-200">
             {tweetData.authorAvatar && (
@@ -101,12 +95,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Content */}
         {originalMarkdown && (
           <ContentDisplay
             originalMarkdown={originalMarkdown}
             translatedMarkdown={translatedMarkdown}
-            isTranslating={isLoading}
+            isTranslating={status === "translating"}
             tweetHandle={tweetData?.authorHandle || "unknown"}
           />
         )}

@@ -19,8 +19,3 @@ export interface TweetData {
   articleTitle?: string;
   articleSubtitle?: string;
 }
-
-export interface FetchTweetResponse {
-  tweet: TweetData;
-  markdown: string;
-}

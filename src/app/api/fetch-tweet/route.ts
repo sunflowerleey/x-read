@@ -21,17 +21,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const tweet = await fetchTweet(parsed.tweetId);
-
+    const canonicalUrl = `https://x.com/${parsed.screenName}/article/${parsed.tweetId}`;
     let markdown: string;
 
-    // If it's an article or the tweet has article data, fetch full article content
-    if (parsed.isArticle || tweet.isArticle) {
-      // Reconstruct canonical URL from parsed data instead of forwarding user input
-      const canonicalUrl = `https://x.com/${parsed.screenName}/article/${parsed.tweetId}`;
+    // When URL already indicates article, fetch both in parallel
+    if (parsed.isArticle) {
+      const [tweet, articleContent] = await Promise.all([
+        fetchTweet(parsed.tweetId),
+        fetchArticleContent(canonicalUrl),
+      ]);
+      markdown = articleToMarkdown(articleContent, tweet);
+      if (!tweet.language || tweet.language === "unknown") {
+        const sample = articleContent.slice(0, 500);
+        const chineseChars = (sample.match(/[\u4e00-\u9fff]/g) || []).length;
+        tweet.language = chineseChars > sample.length * 0.1 ? "zh" : "en";
+      }
+      return NextResponse.json({ tweet, markdown });
+    }
+
+    // Regular tweet or unknown — need tweet data first to check isArticle
+    const tweet = await fetchTweet(parsed.tweetId);
+    if (tweet.isArticle) {
       const articleContent = await fetchArticleContent(canonicalUrl);
       markdown = articleToMarkdown(articleContent, tweet);
-      // Detect language from content for articles (FxTwitter may return null lang)
       if (!tweet.language || tweet.language === "unknown") {
         const sample = articleContent.slice(0, 500);
         const chineseChars = (sample.match(/[\u4e00-\u9fff]/g) || []).length;

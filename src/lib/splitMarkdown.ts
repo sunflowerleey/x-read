@@ -93,7 +93,7 @@ export function splitMarkdownIntoBlocks(md: string): string[] {
 }
 
 function isListLine(line: string): boolean {
-  return /^(\d+\.?\s+|\*\s+|-\s+)/.test(line.trim());
+  return /^(\d+\.?\s+|\*\s+|-\s+)/.test(line);
 }
 
 function findNextNonBlank(lines: string[], start: number): string | null {

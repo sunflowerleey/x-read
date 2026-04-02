@@ -1,42 +1,32 @@
 import { GoogleGenAI } from "@google/genai";
 
-function getAI() {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key || key === "your_gemini_api_key_here") {
-    throw new Error("GEMINI_API_KEY is not configured");
+let _ai: GoogleGenAI | null = null;
+
+function getAI(): GoogleGenAI {
+  if (!_ai) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key || key === "your_gemini_api_key_here") {
+      throw new Error("GEMINI_API_KEY is not configured");
+    }
+    _ai = new GoogleGenAI({ apiKey: key });
   }
-  return new GoogleGenAI({ apiKey: key });
+  return _ai;
 }
 
 export async function* streamTranslateToChineseMarkdown(
   markdown: string
 ): AsyncGenerator<string> {
-  const ai = getAI();
-  const response = await ai.models.generateContentStream({
+  const response = await getAI().models.generateContentStream({
     model: "gemini-2.5-flash",
     config: {
-      thinkingConfig: {
-        thinkingBudget: 0,
-      },
+      thinkingConfig: { thinkingBudget: 0 },
     },
     contents: [
       {
         role: "user",
-        parts: [{ text: buildTranslationPrompt(markdown) }],
-      },
-    ],
-  });
-
-  for await (const chunk of response) {
-    const text = chunk.text;
-    if (text) {
-      yield text;
-    }
-  }
-}
-
-function buildTranslationPrompt(markdown: string): string {
-  return `You are a professional English-to-Chinese translator. Translate the following English markdown content to Simplified Chinese.
+        parts: [
+          {
+            text: `You are a professional English-to-Chinese translator. Translate the following English markdown content to Simplified Chinese.
 
 Rules:
 - Preserve all markdown formatting exactly (headings, bold, links, images, blockquotes, code blocks, etc.)
@@ -52,5 +42,17 @@ Rules:
 
 Content to translate:
 
-${markdown}`;
+${markdown}`,
+          },
+        ],
+      },
+    ],
+  });
+
+  for await (const chunk of response) {
+    const text = chunk.text;
+    if (text) {
+      yield text;
+    }
+  }
 }

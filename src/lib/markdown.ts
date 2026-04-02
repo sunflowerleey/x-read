@@ -1,5 +1,21 @@
 import { TweetData } from "./types";
 
+function appendFooter(lines: string[], tweet: TweetData): void {
+  lines.push("---");
+  lines.push("");
+  lines.push(`**Author:** ${tweet.authorName} (@${tweet.authorHandle})`);
+  lines.push("");
+  lines.push(`**Date:** ${tweet.createdAt}`);
+  lines.push("");
+  lines.push(
+    `**Likes:** ${tweet.likes.toLocaleString("en-US")} | **Retweets:** ${tweet.retweets.toLocaleString("en-US")} | **Replies:** ${tweet.replies.toLocaleString("en-US")}`
+  );
+  lines.push("");
+  lines.push(
+    `[View Original](https://x.com/${tweet.authorHandle}/status/${tweet.id})`
+  );
+}
+
 export function tweetToMarkdown(tweet: TweetData): string {
   const lines: string[] = [];
 
@@ -31,20 +47,7 @@ export function tweetToMarkdown(tweet: TweetData): string {
     lines.push("");
   }
 
-  lines.push("---");
-  lines.push("");
-  lines.push(`**Author:** ${tweet.authorName} (@${tweet.authorHandle})`);
-  lines.push("");
-  lines.push(`**Date:** ${tweet.createdAt}`);
-  lines.push("");
-  lines.push(
-    `**Likes:** ${tweet.likes.toLocaleString()} | **Retweets:** ${tweet.retweets.toLocaleString()} | **Replies:** ${tweet.replies.toLocaleString()}`
-  );
-  lines.push("");
-  lines.push(
-    `[View Original](https://x.com/${tweet.authorHandle}/status/${tweet.id})`
-  );
-
+  appendFooter(lines, tweet);
   return lines.join("\n");
 }
 
@@ -54,7 +57,6 @@ export function articleToMarkdown(
 ): string {
   const lines: string[] = [];
 
-  // Add article title if available and not already present in content
   if (tweet.articleTitle) {
     const firstLine = articleContent.split("\n")[0].trim();
     const titleAlreadyPresent =
@@ -66,7 +68,6 @@ export function articleToMarkdown(
     }
   }
 
-  // Add subtitle if available and not already in the content
   if (tweet.articleSubtitle) {
     const contentStart = articleContent.slice(0, 300).toLowerCase();
     if (!contentStart.includes(tweet.articleSubtitle.toLowerCase().slice(0, 30))) {
@@ -77,19 +78,6 @@ export function articleToMarkdown(
 
   lines.push(articleContent);
   lines.push("");
-  lines.push("---");
-  lines.push("");
-  lines.push(`**Author:** ${tweet.authorName} (@${tweet.authorHandle})`);
-  lines.push("");
-  lines.push(`**Date:** ${tweet.createdAt}`);
-  lines.push("");
-  lines.push(
-    `**Likes:** ${tweet.likes.toLocaleString()} | **Retweets:** ${tweet.retweets.toLocaleString()} | **Replies:** ${tweet.replies.toLocaleString()}`
-  );
-  lines.push("");
-  lines.push(
-    `[View Original](https://x.com/${tweet.authorHandle}/status/${tweet.id})`
-  );
-
+  appendFooter(lines, tweet);
   return lines.join("\n");
 }

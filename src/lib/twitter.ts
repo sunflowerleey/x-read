@@ -106,33 +106,26 @@ export async function fetchArticleContent(url: string): Promise<string> {
   // with markdown syntax, followed by a blank line and body text are likely
   // section headings.
   content = fixCodeBlocks(content);
-  content = removeVideoThumbnails(content);
-  content = removeVideoTimestamps(content);
+  content = filterJunkLines(content);
   content = injectSectionBreaksBeforeFileLists(content);
   content = restoreMissingSectionHeadings(content);
 
   return content;
 }
 
-/**
- * Remove video thumbnail images (amplify_video_thumb) since we can't
- * embed the actual video. These are just static preview images.
- */
-function removeVideoThumbnails(md: string): string {
-  return md
-    .split("\n")
-    .filter((line) => !line.trim().match(/^!\[.*\]\(https:\/\/pbs\.twimg\.com\/amplify_video_thumb\/.+\)$/))
-    .join("\n");
-}
+const JUNK_LINE_PATTERNS = [
+  /^!\[.*\]\(https:\/\/pbs\.twimg\.com\/amplify_video_thumb\/.+\)$/, // video thumbnails
+  /^\d{1,2}:\d{2}$/, // orphaned video timestamps
+];
 
-/**
- * Remove orphaned video timestamps like "0:20" that Jina extracts
- * from embedded video players.
- */
-function removeVideoTimestamps(md: string): string {
+/** Single-pass filter for lines that should be removed. */
+function filterJunkLines(md: string): string {
   return md
     .split("\n")
-    .filter((line) => !line.trim().match(/^\d{1,2}:\d{2}$/))
+    .filter((line) => {
+      const trimmed = line.trim();
+      return !JUNK_LINE_PATTERNS.some((p) => p.test(trimmed));
+    })
     .join("\n");
 }
 
