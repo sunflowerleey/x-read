@@ -1,7 +1,8 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 :root {
-  --background: #ffffff;
+  --background: #f9fafb;
   --foreground: #171717;
 }
 
@@ -12,15 +13,54 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Code block styling - use !important to override typography plugin */
+.prose pre {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+  border-radius: 0.5rem !important;
+  padding: 1rem 1.25rem !important;
+  overflow-x: auto !important;
+  font-size: 0.85rem !important;
+  line-height: 1.7 !important;
+  margin: 1.25rem 0 !important;
+  border: 1px solid #334155 !important;
+}
+
+.prose pre code {
+  background: none !important;
+  padding: 0 !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  border: none !important;
+}
+
+/* Inline code styling */
+.prose code {
+  background-color: #f1f5f9 !important;
+  padding: 0.15rem 0.4rem !important;
+  border-radius: 0.25rem !important;
+  font-size: 0.85em !important;
+  color: #be185d !important;
+  border: 1px solid #e2e8f0 !important;
+  font-weight: 500 !important;
+}
+
+/* Make sure pre > code doesn't get inline styling */
+.prose pre > code {
+  border: none !important;
+  font-weight: normal !important;
+}
+
+/* Image sizing */
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
 }
