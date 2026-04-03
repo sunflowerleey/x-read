@@ -35,7 +35,30 @@ jobs:
       - name: Layer guard
         run: bash scripts/check-layers.sh
 
-      - name: Test
+      - name: Unit tests
         run: npm test -- --reporter=verbose
+        env:
+          GEMINI_API_KEY: test-placeholder
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run E2E tests
+        run: npm run test:e2e
         env:
           GEMINI_API_KEY: test-placeholder
