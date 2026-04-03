@@ -35,6 +35,9 @@ jobs:
       - name: Layer guard
         run: bash scripts/check-layers.sh
 
+      - name: Quality gate
+        run: bash scripts/check-quality.sh
+
       - name: Unit tests
         run: npm test -- --reporter=verbose
         env:

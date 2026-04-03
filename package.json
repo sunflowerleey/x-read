@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "quality": "bash scripts/update-quality.sh",
+    "check-quality": "bash scripts/check-quality.sh",
     "check-layers": "bash scripts/check-layers.sh",
     "test:e2e": "playwright test --config e2e/playwright.config.ts"
   },
