@@ -17,14 +17,14 @@
             "statusMessage": "Running tests..."
           }
         ]
-      }
-    ],
-    "Stop": [
+      },
       {
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "bash scripts/update-quality.sh 2>/dev/null || true",
+            "if": "Bash(git commit *)",
+            "command": "bash scripts/update-quality.sh 2>/dev/null && git add docs/QUALITY.md 2>/dev/null || true",
             "timeout": 10,
             "statusMessage": "Updating quality report..."
           }
