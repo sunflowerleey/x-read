@@ -16,10 +16,11 @@ Stack: Next.js 16 + React 19 + TypeScript + Tailwind CSS 4.
 - `npm run quality` — regenerate docs/QUALITY.md from code metrics
 
 ## Automated Feedback Loops (Hooks)
-- After editing any `.ts`/`.tsx` file: lint + typecheck runs automatically
-- After editing any `.test.ts` file: tests run automatically
-- CI runs: lint → typecheck → layer guard → quality gate → unit tests + E2E (parallel)
-- Quality gate: D-grade modules (>200 lines, no tests) block merge; C-grade warns
+- **PostToolUse (Edit/Write):** lint + typecheck on `.ts`/`.tsx`; tests on `.test.ts`
+- **Stop:** auto-regenerate `docs/QUALITY.md` when session ends
+- **PreCompact:** inject architecture + workflow context so it survives context compression
+- CI: lint → typecheck → layer guard → quality gate → quality freshness → unit tests + E2E
+- Quality gate: all lib modules must have tests (C/D grade blocks merge)
 
 ## Architecture (5 layers, bottom-up)
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full details.
