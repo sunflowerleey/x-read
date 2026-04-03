@@ -65,8 +65,16 @@ See [docs/QUALITY.md](docs/QUALITY.md) for per-module grades and test coverage.
 3. Gemini `thinkingBudget: 0` — reduces TTFT for translation. See `src/lib/gemini.ts`
 4. Markdown post-processing pipeline — 5-stage Jina cleanup. See `fetchArticleContent()` in `src/lib/twitter.ts`
 
+## Workflow Preferences
+- After completing work: commit → push to feature branch → create PR → wait for CI → merge → pull main. Do all steps automatically without asking.
+- Use conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
+- Branch naming: `feat/xxx`, `fix/xxx`, `test/xxx`, `refactor/xxx`
+- Main branch is protected: always go through PR
+
 ## When Adding Features
 - New platform (e.g., Substack): add `src/lib/substack.ts` in Data layer
 - New transform: add in `src/lib/`, import only from Types/Data layers
 - New page: add in `src/app/`, use hooks to call API routes
-- Always add tests for pure functions before marking done
+- Always add unit tests for pure functions
+- Add E2E tests for UI interactions and cross-layer behaviors
+- Run `npm run quality` to update quality report after adding tests
