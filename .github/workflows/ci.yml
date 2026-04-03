@@ -38,6 +38,15 @@ jobs:
       - name: Quality gate
         run: bash scripts/check-quality.sh
 
+      - name: Quality report freshness
+        run: |
+          bash scripts/update-quality.sh
+          if ! git diff --quiet docs/QUALITY.md; then
+            echo "FAIL: docs/QUALITY.md is stale. Run 'npm run quality' and commit."
+            git diff docs/QUALITY.md
+            exit 1
+          fi
+
       - name: Unit tests
         run: npm test -- --reporter=verbose
         env:

@@ -18,6 +18,30 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/update-quality.sh 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Updating quality report..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreCompact\",\"additionalContext\":\"CRITICAL CONTEXT TO PRESERVE ACROSS COMPACTION:\\n\\n## Architecture\\n5-layer model: Types → Data → Transform → API → UI. See docs/ARCHITECTURE.md.\\n\\n## Workflow\\nAfter completing work: commit → push feature branch → create PR → wait CI → merge → pull main. Do ALL steps automatically.\\n\\n## Current Quality\\n8/8 lib modules tested, 74 unit tests, 7 E2E tests. Quality gate blocks untested modules.\\n\\n## Key Files\\n- CLAUDE.md: agent knowledge map\\n- docs/ARCHITECTURE.md: layer definitions\\n- .claude/settings.json: hooks config\\n- scripts/check-quality.sh + check-layers.sh: CI gates\"}}'",
+            "timeout": 5,
+            "statusMessage": "Preserving context..."
+          }
+        ]
+      }
     ]
   }
 }
