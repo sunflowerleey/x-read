@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
 
-const MOCK_TWEET_RESPONSE = {
-  tweet: {
-    id: "123",
-    text: "Hello world from test!",
+const MOCK_TWITTER_RESPONSE = {
+  content: {
+    source: "twitter",
+    title: "Tweet by @testuser",
+    url: "https://x.com/testuser/status/123",
     authorName: "Test User",
     authorHandle: "testuser",
     authorAvatar: "",
@@ -15,7 +16,23 @@ const MOCK_TWEET_RESPONSE = {
     media: [],
     isArticle: false,
   },
-  markdown: "# Tweet by @testuser\n\nHello world from test!\n\n---\n\n**Author:** Test User (@testuser)",
+  markdown:
+    "# Tweet by @testuser\n\nHello world from test!\n\n---\n\n**Author:** Test User (@testuser)",
+};
+
+const MOCK_WEBPAGE_RESPONSE = {
+  content: {
+    source: "webpage",
+    title: "Example Blog Post",
+    url: "https://example.com/post",
+    authorName: "example.com",
+    authorHandle: "example.com",
+    authorAvatar: "",
+    createdAt: "2026-01-01",
+    language: "en",
+  },
+  markdown:
+    "# Example Blog Post\n\nThis is a blog post.\n\n---\n\n**Source:** example.com",
 };
 
 const MOCK_SSE_STREAM =
@@ -25,12 +42,11 @@ test.describe("Fetch and translate flow", () => {
   test("fetches tweet and displays content with translation", async ({
     page,
   }) => {
-    // Mock API routes
-    await page.route("**/api/fetch-tweet", async (route) => {
+    await page.route("**/api/fetch-content", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(MOCK_TWEET_RESPONSE),
+        body: JSON.stringify(MOCK_TWITTER_RESPONSE),
       });
     });
 
@@ -48,44 +64,70 @@ test.describe("Fetch and translate flow", () => {
 
     await page.goto("/");
 
-    // Type URL and submit
     await page.fill(
       'input[type="text"]',
       "https://x.com/testuser/status/123"
     );
     await page.click('button:has-text("Fetch")');
 
-    // Wait for tweet author info card
     await expect(page.getByText("Test User @testuser")).toBeVisible({
       timeout: 10_000,
     });
 
-    // Wait for original content to render
     await expect(page.locator("text=Hello world from test!")).toBeVisible({
       timeout: 10_000,
     });
 
-    // Wait for translated content
     await expect(page.locator("text=来自测试的你好世界")).toBeVisible({
       timeout: 10_000,
     });
   });
 
-  test("shows error for invalid URL", async ({ page }) => {
-    await page.route("**/api/fetch-tweet", async (route) => {
+  test("fetches generic webpage content", async ({ page }) => {
+    await page.route("**/api/fetch-content", async (route) => {
       await route.fulfill({
-        status: 400,
+        status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ error: "Invalid Twitter/X URL" }),
+        body: JSON.stringify(MOCK_WEBPAGE_RESPONSE),
+      });
+    });
+
+    await page.route("**/api/translate", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: 'data: {"text":"# 示例博客文章"}\n\ndata: [DONE]\n\n',
       });
     });
 
     await page.goto("/");
-    await page.fill('input[type="text"]', "https://google.com");
+
+    await page.fill('input[type="text"]', "https://example.com/post");
     await page.click('button:has-text("Fetch")');
 
-    await expect(page.locator("text=Invalid Twitter/X URL")).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Example Blog Post" })).toBeVisible({
       timeout: 10_000,
     });
+    await expect(page.getByText(/example\.com \·/)).toBeVisible();
+  });
+
+  test("shows error for invalid URL", async ({ page }) => {
+    await page.route("**/api/fetch-content", async (route) => {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Please enter a valid URL (starting with https://)",
+        }),
+      });
+    });
+
+    await page.goto("/");
+    await page.fill('input[type="text"]', "not a url");
+    await page.click('button:has-text("Fetch")');
+
+    await expect(
+      page.locator("text=Please enter a valid URL")
+    ).toBeVisible({ timeout: 10_000 });
   });
 });

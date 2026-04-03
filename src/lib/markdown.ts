@@ -1,43 +1,49 @@
-import { TweetData } from "./types";
+import { ContentData } from "./types";
 
-function appendFooter(lines: string[], tweet: TweetData): void {
+function appendFooter(lines: string[], content: ContentData): void {
   lines.push("---");
   lines.push("");
-  lines.push(`**Author:** ${tweet.authorName} (@${tweet.authorHandle})`);
+  if (content.source === "twitter") {
+    lines.push(`**Author:** ${content.authorName} (@${content.authorHandle})`);
+    lines.push("");
+    lines.push(`**Date:** ${content.createdAt}`);
+    lines.push("");
+    lines.push(
+      `**Likes:** ${(content.likes ?? 0).toLocaleString("en-US")} | **Retweets:** ${(content.retweets ?? 0).toLocaleString("en-US")} | **Replies:** ${(content.replies ?? 0).toLocaleString("en-US")}`
+    );
+  } else {
+    lines.push(`**Source:** ${content.authorName}`);
+    if (content.createdAt) {
+      lines.push("");
+      lines.push(`**Date:** ${content.createdAt}`);
+    }
+  }
   lines.push("");
-  lines.push(`**Date:** ${tweet.createdAt}`);
-  lines.push("");
-  lines.push(
-    `**Likes:** ${tweet.likes.toLocaleString("en-US")} | **Retweets:** ${tweet.retweets.toLocaleString("en-US")} | **Replies:** ${tweet.replies.toLocaleString("en-US")}`
-  );
-  lines.push("");
-  lines.push(
-    `[View Original](https://x.com/${tweet.authorHandle}/status/${tweet.id})`
-  );
+  lines.push(`[View Original](${content.url})`);
 }
 
-export function tweetToMarkdown(tweet: TweetData): string {
+export function tweetToMarkdown(content: ContentData): string {
   const lines: string[] = [];
 
-  lines.push(`# Tweet by @${tweet.authorHandle}`);
+  lines.push(`# Tweet by @${content.authorHandle}`);
   lines.push("");
-  lines.push(tweet.text);
+  // For regular tweets, content.title may be "Tweet by @handle", use articleTitle if available
   lines.push("");
 
-  if (tweet.quotedTweet) {
+  if (content.quotedTweet) {
     lines.push(
-      `> **@${tweet.quotedTweet.authorHandle}** (${tweet.quotedTweet.authorName}):`
+      `> **@${content.quotedTweet.authorHandle}** (${content.quotedTweet.authorName}):`
     );
-    for (const line of tweet.quotedTweet.text.split("\n")) {
+    for (const line of content.quotedTweet.text.split("\n")) {
       lines.push(`> ${line}`);
     }
     lines.push("");
   }
 
-  if (tweet.media.length > 0) {
+  if (content.media && content.media.length > 0) {
     lines.push("## Media");
     lines.push("");
-    for (const m of tweet.media) {
+    for (const m of content.media) {
       if (m.type === "photo") {
         lines.push(`![image](${m.url})`);
       } else {
@@ -47,37 +53,56 @@ export function tweetToMarkdown(tweet: TweetData): string {
     lines.push("");
   }
 
-  appendFooter(lines, tweet);
+  appendFooter(lines, content);
   return lines.join("\n");
 }
 
 export function articleToMarkdown(
   articleContent: string,
-  tweet: TweetData
+  content: ContentData
 ): string {
   const lines: string[] = [];
 
-  if (tweet.articleTitle) {
+  if (content.articleTitle) {
     const firstLine = articleContent.split("\n")[0].trim();
     const titleAlreadyPresent =
       firstLine.startsWith("# ") ||
-      firstLine.toLowerCase().includes(tweet.articleTitle.toLowerCase().slice(0, 30));
+      firstLine.toLowerCase().includes(content.articleTitle.toLowerCase().slice(0, 30));
     if (!titleAlreadyPresent) {
-      lines.push(`# ${tweet.articleTitle}`);
+      lines.push(`# ${content.articleTitle}`);
       lines.push("");
     }
   }
 
-  if (tweet.articleSubtitle) {
+  if (content.articleSubtitle) {
     const contentStart = articleContent.slice(0, 300).toLowerCase();
-    if (!contentStart.includes(tweet.articleSubtitle.toLowerCase().slice(0, 30))) {
-      lines.push(`### ${tweet.articleSubtitle}`);
+    if (!contentStart.includes(content.articleSubtitle.toLowerCase().slice(0, 30))) {
+      lines.push(`### ${content.articleSubtitle}`);
       lines.push("");
     }
   }
 
   lines.push(articleContent);
   lines.push("");
-  appendFooter(lines, tweet);
+  appendFooter(lines, content);
+  return lines.join("\n");
+}
+
+export function webpageToMarkdown(
+  rawMarkdown: string,
+  content: ContentData
+): string {
+  const lines: string[] = [];
+
+  // Add title if not already present in content
+  const firstLine = rawMarkdown.split("\n")[0]?.trim() || "";
+  if (!firstLine.startsWith("# ") && content.title) {
+    lines.push(`# ${content.title}`);
+    lines.push("");
+  }
+
+  lines.push(rawMarkdown);
+  lines.push("");
+  appendFooter(lines, content);
   return lines.join("\n");
 }

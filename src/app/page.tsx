@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTweetFetcher } from "@/hooks/useTweetFetcher";
+import { useContentFetcher } from "@/hooks/useTweetFetcher";
 import { useTheme } from "@/hooks/useTheme";
 import ContentDisplay from "@/components/ContentDisplay";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -10,18 +10,18 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const { theme, toggleTheme } = useTheme();
   const {
-    fetchTweet,
+    fetchContent,
     status,
     error,
-    tweetData,
+    contentData,
     originalMarkdown,
     translatedMarkdown,
-  } = useTweetFetcher();
+  } = useContentFetcher();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!url.trim()) return;
-    fetchTweet(url.trim());
+    fetchContent(url.trim());
   }
 
   return (
@@ -31,7 +31,7 @@ export default function Home() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">X-Read</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Fetch tweets, convert to Markdown, auto-translate English to Chinese
+              Fetch articles, convert to Markdown, auto-translate English to Chinese
             </p>
           </div>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
@@ -44,7 +44,7 @@ export default function Home() {
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste a Twitter/X link here, e.g. https://x.com/user/status/123456"
+            placeholder="Paste any URL — Twitter, blog posts, articles, etc."
             className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-800 dark:text-gray-200 dark:placeholder-gray-500"
             disabled={status === "fetching"}
           />
@@ -70,32 +70,33 @@ export default function Home() {
           </div>
         )}
 
-        {tweetData && (
+        {contentData && (
           <div className="flex items-center gap-3 mb-6 p-4 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
-            {tweetData.authorAvatar && (
+            {contentData.authorAvatar && (
               <img
-                src={tweetData.authorAvatar}
-                alt={tweetData.authorName}
+                src={contentData.authorAvatar}
+                alt={contentData.authorName}
                 className="w-10 h-10 rounded-full"
               />
             )}
-            <div>
-              <p className="font-semibold text-gray-900 dark:text-white">
-                {tweetData.authorName}{" "}
-                <span className="font-normal text-gray-500 dark:text-gray-400">
-                  @{tweetData.authorHandle}
-                </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-gray-900 dark:text-white truncate">
+                {contentData.title}
               </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500">{tweetData.createdAt}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {contentData.authorName}
+                {contentData.source === "twitter" && ` @${contentData.authorHandle}`}
+                {contentData.createdAt && ` · ${contentData.createdAt}`}
+              </p>
             </div>
-            {tweetData.language === "en" && status === "translating" && (
-              <span className="ml-auto text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full">
+            {contentData.language === "en" && status === "translating" && (
+              <span className="ml-auto text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full shrink-0">
                 Translating...
               </span>
             )}
-            {tweetData.language !== "en" && (
-              <span className="ml-auto text-xs text-gray-500 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded-full">
-                Language: {tweetData.language}
+            {contentData.language !== "en" && (
+              <span className="ml-auto text-xs text-gray-500 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded-full shrink-0">
+                {contentData.language}
               </span>
             )}
           </div>
@@ -106,7 +107,7 @@ export default function Home() {
             originalMarkdown={originalMarkdown}
             translatedMarkdown={translatedMarkdown}
             isTranslating={status === "translating"}
-            tweetHandle={tweetData?.authorHandle || "unknown"}
+            tweetHandle={contentData?.authorHandle || "unknown"}
           />
         )}
       </main>

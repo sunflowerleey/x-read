@@ -1,5 +1,25 @@
 import { describe, it, expect } from "vitest";
-import { parseTweetUrl } from "./twitter";
+import { parseTweetUrl, isTwitterUrl } from "./twitter";
+
+describe("isTwitterUrl", () => {
+  it("matches x.com status URLs", () => {
+    expect(isTwitterUrl("https://x.com/user/status/123")).toBe(true);
+  });
+
+  it("matches x.com article URLs", () => {
+    expect(isTwitterUrl("https://x.com/user/article/123")).toBe(true);
+  });
+
+  it("matches twitter.com URLs", () => {
+    expect(isTwitterUrl("https://twitter.com/user/status/456")).toBe(true);
+  });
+
+  it("rejects non-Twitter URLs", () => {
+    expect(isTwitterUrl("https://google.com")).toBe(false);
+    expect(isTwitterUrl("https://substack.com/post/123")).toBe(false);
+    expect(isTwitterUrl("not a url")).toBe(false);
+  });
+});
 
 describe("parseTweetUrl", () => {
   it("parses standard x.com status URL", () => {

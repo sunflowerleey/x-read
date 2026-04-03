@@ -1,47 +1,46 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { TweetData } from "@/lib/types";
+import { ContentData } from "@/lib/types";
 
 type Status = "idle" | "fetching" | "translating" | "done" | "error";
 
-export function useTweetFetcher() {
+export function useContentFetcher() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [tweetData, setTweetData] = useState<TweetData | null>(null);
+  const [contentData, setContentData] = useState<ContentData | null>(null);
   const [originalMarkdown, setOriginalMarkdown] = useState<string | null>(null);
   const [translatedMarkdown, setTranslatedMarkdown] = useState<string | null>(
     null
   );
   const abortRef = useRef<AbortController | null>(null);
 
-  const fetchTweet = useCallback(async (url: string) => {
-    // Abort any previous translation stream
+  const fetchContent = useCallback(async (url: string) => {
     abortRef.current?.abort();
 
     setStatus("fetching");
     setError(null);
-    setTweetData(null);
+    setContentData(null);
     setOriginalMarkdown(null);
     setTranslatedMarkdown(null);
 
     try {
-      const res = await fetch("/api/fetch-tweet", {
+      const res = await fetch("/api/fetch-content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch tweet");
+      if (!res.ok) throw new Error(data.error || "Failed to fetch content");
 
-      setTweetData(data.tweet);
+      setContentData(data.content);
       setOriginalMarkdown(data.markdown);
 
       // Auto-translate if English
-      if (data.tweet.language === "en") {
+      if (data.content.language === "en") {
         setStatus("translating");
-        setTranslatedMarkdown(""); // Start with empty string to show right panel
+        setTranslatedMarkdown("");
 
         const abortController = new AbortController();
         abortRef.current = abortController;
@@ -69,9 +68,8 @@ export function useTweetFetcher() {
 
             buffer += decoder.decode(value, { stream: true });
 
-            // Parse SSE events from buffer
             const lines = buffer.split("\n");
-            buffer = lines.pop() || ""; // Keep incomplete line in buffer
+            buffer = lines.pop() || "";
 
             for (const line of lines) {
               if (line.startsWith("data: ")) {
@@ -81,7 +79,7 @@ export function useTweetFetcher() {
                 try {
                   parsed = JSON.parse(payload);
                 } catch {
-                  continue; // Skip malformed JSON
+                  continue;
                 }
                 if (parsed.error) {
                   throw new Error(parsed.error);
@@ -95,10 +93,8 @@ export function useTweetFetcher() {
           }
         } catch (e) {
           if (e instanceof DOMException && e.name === "AbortError") {
-            // User navigated away or started a new fetch
             return;
           }
-          // Translation failure is non-fatal — keep whatever we have
         }
       }
 
@@ -110,10 +106,10 @@ export function useTweetFetcher() {
   }, []);
 
   return {
-    fetchTweet,
+    fetchContent,
     status,
     error,
-    tweetData,
+    contentData,
     originalMarkdown,
     translatedMarkdown,
   };
