@@ -1,10 +1,6 @@
-import { TweetData } from "./types";
+import { ContentData } from "./types";
 import { cleanJinaMarkdown } from "./cleanJinaMarkdown";
 
-/**
- * Extract subtitle from preview_text. The first line of preview_text
- * is often a subtitle if it differs from the title.
- */
 function extractSubtitle(
   previewText?: string,
   title?: string
@@ -14,6 +10,12 @@ function extractSubtitle(
   if (title && firstLine.toLowerCase() === title.toLowerCase()) return undefined;
   if (firstLine.length === 0) return undefined;
   return firstLine;
+}
+
+export function isTwitterUrl(url: string): boolean {
+  return /(?:twitter\.com|x\.com)\/[^/]+\/(?:status|article)\/\d+/i.test(
+    url.trim()
+  );
 }
 
 export function parseTweetUrl(
@@ -28,7 +30,7 @@ export function parseTweetUrl(
   return { screenName: match[1], tweetId: match[2], isArticle };
 }
 
-export async function fetchTweet(tweetId: string): Promise<TweetData> {
+export async function fetchTweet(tweetId: string): Promise<ContentData> {
   const res = await fetch(`https://api.fxtwitter.com/status/${tweetId}`, {
     headers: { "User-Agent": "X-Read/1.0" },
     signal: AbortSignal.timeout(15_000),
@@ -55,8 +57,9 @@ export async function fetchTweet(tweetId: string): Promise<TweetData> {
   }
 
   return {
-    id: t.id,
-    text: t.text,
+    source: "twitter",
+    title: t.article?.title || `Tweet by @${t.author?.screen_name || "unknown"}`,
+    url: `https://x.com/${t.author?.screen_name || "unknown"}/status/${t.id}`,
     authorName: t.author?.name || "Unknown",
     authorHandle: t.author?.screen_name || "unknown",
     authorAvatar: t.author?.avatar_url || "",

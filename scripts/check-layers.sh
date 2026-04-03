@@ -14,9 +14,9 @@ errors=0
 # Layer 1: Types
 TYPES="src/lib/types.ts"
 # Layer 2: Data
-DATA="src/lib/twitter.ts"
+DATA="src/lib/twitter.ts src/lib/webpage.ts"
 # Layer 3: Transform
-TRANSFORM="src/lib/gemini.ts src/lib/markdown.ts src/lib/splitMarkdown.ts src/lib/alignBlocks.ts src/lib/escapeHtml.ts"
+TRANSFORM="src/lib/gemini.ts src/lib/markdown.ts src/lib/splitMarkdown.ts src/lib/alignBlocks.ts src/lib/escapeHtml.ts src/lib/cleanJinaMarkdown.ts"
 # Layer 4: API routes
 API="src/app/api"
 # Layer 5: UI
@@ -40,12 +40,15 @@ echo "Checking architecture layer dependencies..."
 echo ""
 
 # Layer 1 (Types): must not import from any other project layer
-check_no_import "$TYPES" "from ['\"]@/lib/(twitter|gemini|markdown|splitMarkdown|alignBlocks|escapeHtml)" \
+check_no_import "$TYPES" "from ['\"]@/lib/(twitter|webpage|gemini|markdown|splitMarkdown|alignBlocks|escapeHtml|cleanJinaMarkdown)" \
   "Types layer must not import from Data/Transform layers"
 
-# Layer 2 (Data): must not import from Transform (except types)
-check_no_import "$DATA" "from ['\"]@/lib/(gemini|markdown|splitMarkdown|alignBlocks|escapeHtml)" \
-  "Data layer must not import from Transform layer"
+# Layer 2 (Data): must not import from Transform (except types and cleanJinaMarkdown which is used by twitter.ts)
+for f in $DATA; do
+  [ -f "$f" ] || continue
+  check_no_import "$f" "from ['\"]@/lib/(gemini|markdown|splitMarkdown|alignBlocks|escapeHtml)" \
+    "Data layer must not import from Transform layer (except cleanJinaMarkdown)"
+done
 
 # Layer 3 (Transform): must not import from API or UI
 for f in $TRANSFORM; do
@@ -58,7 +61,7 @@ done
 # Layer 5 (UI components/hooks): must not import directly from Data layer
 for f in src/components/*.tsx src/components/*.ts src/hooks/*.ts; do
   [ -f "$f" ] || continue
-  check_no_import "$f" "from ['\"]@/lib/twitter" \
+  check_no_import "$f" "from ['\"]@/lib/(twitter|webpage)" \
     "UI layer must not import directly from Data layer (use API routes)"
   check_no_import "$f" "from ['\"]@/lib/gemini" \
     "UI layer must not import directly from Gemini (use API routes)"
