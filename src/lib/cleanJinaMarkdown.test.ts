@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   fixCodeBlocks,
   filterJunkLines,
+  fixBrokenTables,
   restoreMissingSectionHeadings,
   deriveSectionTitle,
   cleanJinaMarkdown,
@@ -82,6 +83,38 @@ describe("restoreMissingSectionHeadings", () => {
   it("does not modify existing headings", () => {
     const input = "## Already a Heading\n\nContent.";
     expect(restoreMissingSectionHeadings(input)).toBe(input);
+  });
+});
+
+describe("fixBrokenTables", () => {
+  it("converts broken 3-column table to markdown table", () => {
+    const input = [
+      "**Agent & Phase****Duration****Cost**",
+      "Planner 4.7 min$0.46",
+      "Build (Round 1)2 hr 7 min$71.08",
+      "QA (Round 1)8.8 min$3.24",
+      "**Total V2 Harness****3 hr 50 min****$124.70**",
+      "",
+      "Next paragraph.",
+    ].join("\n");
+
+    const result = fixBrokenTables(input);
+    expect(result).toContain("| **Agent & Phase** |");
+    expect(result).toContain("| --- |");
+    expect(result).toContain("$0.46");
+    expect(result).toContain("$71.08");
+    expect(result).toContain("$124.70");
+    expect(result).toContain("Next paragraph.");
+  });
+
+  it("does not modify regular bold text", () => {
+    const input = "This is **bold** text and **more bold** text.";
+    expect(fixBrokenTables(input)).toBe(input);
+  });
+
+  it("does not modify proper markdown tables", () => {
+    const input = "| A | B |\n| --- | --- |\n| 1 | 2 |";
+    expect(fixBrokenTables(input)).toBe(input);
   });
 });
 

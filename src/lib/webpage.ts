@@ -1,4 +1,5 @@
 import { ContentData } from "./types";
+import { fixBrokenTables } from "./cleanJinaMarkdown";
 
 /**
  * Fetch any webpage content via Jina Reader and return ContentData + markdown.
@@ -28,9 +29,10 @@ export async function fetchWebpage(url: string): Promise<{
 
   // Extract markdown body
   const markdownStart = text.indexOf("Markdown Content:");
-  const markdown = markdownStart !== -1
+  const raw = markdownStart !== -1
     ? text.slice(markdownStart + "Markdown Content:".length).trim()
     : text;
+  const markdown = fixBrokenTables(raw);
 
   // Detect language
   const sample = markdown.slice(0, 500);
