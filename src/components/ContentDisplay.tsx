@@ -24,7 +24,7 @@ const MarkdownBlock = memo(function MarkdownBlock({
 }) {
   const safe = escapeNonHtmlTags(markdown);
   return (
-    <article className="prose prose-slate max-w-none prose-headings:scroll-mt-4 prose-img:rounded-lg prose-pre:bg-slate-800">
+    <article className="prose prose-slate dark:prose-invert max-w-none prose-headings:scroll-mt-4 prose-img:rounded-lg prose-pre:bg-slate-800">
       <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{safe}</ReactMarkdown>
     </article>
   );
@@ -33,7 +33,7 @@ const MarkdownBlock = memo(function MarkdownBlock({
 function Spinner({ className = "w-3 h-3" }: { className?: string }) {
   return (
     <div
-      className={`${className} border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin`}
+      className={`${className} border-2 border-gray-300 dark:border-gray-600 border-t-blue-500 rounded-full animate-spin`}
     />
   );
 }
@@ -59,10 +59,10 @@ export default function ContentDisplay({
   if (!isSideBySide) {
     return (
       <div className="max-w-3xl mx-auto">
-        <h2 className="text-lg font-semibold mb-3 text-gray-800">
+        <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">
           English Original
         </h2>
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6">
           <MarkdownBlock markdown={originalMarkdown} />
         </div>
         <DownloadButton
@@ -76,27 +76,29 @@ export default function ContentDisplay({
   return (
     <div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-3">
-        <h2 className="text-lg font-semibold text-gray-800">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
           English Original
         </h2>
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-gray-800">中文翻译</h2>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+            中文翻译
+          </h2>
           {isTranslating && (
-            <div className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-              <Spinner className="w-3 h-3 border-blue-300 border-t-blue-600" />
+            <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
+              <Spinner className="w-3 h-3 border-blue-300 dark:border-blue-700 border-t-blue-600 dark:border-t-blue-400" />
               翻译中...
             </div>
           )}
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+      <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
         {alignedPairs.map(([enBlock, zhBlock], i) => (
           <div
             key={i}
-            className={`grid grid-cols-1 md:grid-cols-2 ${i > 0 ? "border-t border-gray-50" : ""}`}
+            className={`grid grid-cols-1 md:grid-cols-2 ${i > 0 ? "border-t border-gray-50 dark:border-slate-700/50" : ""}`}
           >
-            <div className="px-6 py-2 md:border-r border-gray-100">
+            <div className="px-6 py-2 md:border-r border-gray-100 dark:border-slate-700/50">
               {enBlock && <MarkdownBlock markdown={enBlock} />}
             </div>
             <div className="px-6 py-2">
@@ -105,7 +107,7 @@ export default function ContentDisplay({
               ) : (
                 isTranslating &&
                 enBlock && (
-                  <div className="flex items-center gap-2 py-2 text-gray-400 text-sm">
+                  <div className="flex items-center gap-2 py-2 text-gray-400 dark:text-gray-600 text-sm">
                     <Spinner />
                   </div>
                 )

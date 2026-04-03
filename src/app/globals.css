@@ -1,9 +1,16 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f9fafb;
   --foreground: #171717;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #e2e8f0;
 }
 
 @theme inline {
@@ -19,7 +26,7 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Code block styling - use !important to override typography plugin */
+/* Code block styling */
 .prose pre {
   background-color: #1e293b !important;
   color: #e2e8f0 !important;
@@ -51,10 +58,51 @@ body {
   font-weight: 500 !important;
 }
 
-/* Make sure pre > code doesn't get inline styling */
+.dark .prose code {
+  background-color: #1e293b !important;
+  color: #f472b6 !important;
+  border-color: #334155 !important;
+}
+
 .prose pre > code {
   border: none !important;
   font-weight: normal !important;
+}
+
+/* Dark mode prose text */
+.dark .prose {
+  --tw-prose-body: #cbd5e1 !important;
+  --tw-prose-headings: #f1f5f9 !important;
+  --tw-prose-links: #60a5fa !important;
+  --tw-prose-bold: #f1f5f9 !important;
+  --tw-prose-quotes: #94a3b8 !important;
+  --tw-prose-quote-borders: #475569 !important;
+  --tw-prose-counters: #94a3b8 !important;
+  --tw-prose-bullets: #64748b !important;
+  --tw-prose-hr: #334155 !important;
+  --tw-prose-th-borders: #475569 !important;
+  --tw-prose-td-borders: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4 {
+  color: #f1f5f9 !important;
+}
+
+.dark .prose a {
+  color: #60a5fa !important;
+}
+
+.dark .prose strong {
+  color: #f1f5f9 !important;
+}
+
+.dark .prose blockquote {
+  border-color: #475569 !important;
+  color: #94a3b8 !important;
 }
 
 /* Image sizing */

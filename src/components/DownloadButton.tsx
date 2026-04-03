@@ -24,7 +24,7 @@ export default function DownloadButton({
   return (
     <button
       onClick={handleDownload}
-      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors cursor-pointer"
+      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-md transition-colors cursor-pointer"
     >
       <svg
         className="w-4 h-4"

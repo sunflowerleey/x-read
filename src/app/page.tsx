@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { useTweetFetcher } from "@/hooks/useTweetFetcher";
+import { useTheme } from "@/hooks/useTheme";
 import ContentDisplay from "@/components/ContentDisplay";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const { theme, toggleTheme } = useTheme();
   const {
     fetchTweet,
     status,
@@ -22,13 +25,16 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold text-gray-900">X-Read</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Fetch tweets, convert to Markdown, auto-translate English to Chinese
-          </p>
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <header className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">X-Read</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Fetch tweets, convert to Markdown, auto-translate English to Chinese
+            </p>
+          </div>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
       </header>
 
@@ -39,7 +45,7 @@ export default function Home() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="Paste a Twitter/X link here, e.g. https://x.com/user/status/123456"
-            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-800 dark:text-gray-200 dark:placeholder-gray-500"
             disabled={status === "fetching"}
           />
           <button
@@ -59,13 +65,13 @@ export default function Home() {
         </form>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
             {error}
           </div>
         )}
 
         {tweetData && (
-          <div className="flex items-center gap-3 mb-6 p-4 bg-white rounded-lg border border-gray-200">
+          <div className="flex items-center gap-3 mb-6 p-4 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
             {tweetData.authorAvatar && (
               <img
                 src={tweetData.authorAvatar}
@@ -74,21 +80,21 @@ export default function Home() {
               />
             )}
             <div>
-              <p className="font-semibold text-gray-900">
+              <p className="font-semibold text-gray-900 dark:text-white">
                 {tweetData.authorName}{" "}
-                <span className="font-normal text-gray-500">
+                <span className="font-normal text-gray-500 dark:text-gray-400">
                   @{tweetData.authorHandle}
                 </span>
               </p>
-              <p className="text-xs text-gray-400">{tweetData.createdAt}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{tweetData.createdAt}</p>
             </div>
             {tweetData.language === "en" && status === "translating" && (
-              <span className="ml-auto text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+              <span className="ml-auto text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full">
                 Translating...
               </span>
             )}
             {tweetData.language !== "en" && (
-              <span className="ml-auto text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+              <span className="ml-auto text-xs text-gray-500 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded-full">
                 Language: {tweetData.language}
               </span>
             )}
