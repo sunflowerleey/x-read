@@ -59,16 +59,18 @@ export default function ContentDisplay({
   if (!isSideBySide) {
     return (
       <div className="max-w-3xl mx-auto">
-        <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">
-          English Original
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+            English Original
+          </h2>
+          <DownloadButton
+            markdown={originalMarkdown}
+            filename={`tweet-${tweetHandle}-en.md`}
+          />
+        </div>
         <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6">
           <MarkdownBlock markdown={originalMarkdown} />
         </div>
-        <DownloadButton
-          markdown={originalMarkdown}
-          filename={`tweet-${tweetHandle}-en.md`}
-        />
       </div>
     );
   }
@@ -76,18 +78,33 @@ export default function ContentDisplay({
   return (
     <div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-3">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-          English Original
-        </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-            中文翻译
+            English Original
           </h2>
-          {isTranslating && (
-            <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
-              <Spinner className="w-3 h-3 border-blue-300 dark:border-blue-700 border-t-blue-600 dark:border-t-blue-400" />
-              翻译中...
-            </div>
+          <DownloadButton
+            markdown={originalMarkdown}
+            filename={`tweet-${tweetHandle}-en.md`}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+              中文翻译
+            </h2>
+            {isTranslating && (
+              <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
+                <Spinner className="w-3 h-3 border-blue-300 dark:border-blue-700 border-t-blue-600 dark:border-t-blue-400" />
+                翻译中...
+              </div>
+            )}
+          </div>
+          {hasContent && !isTranslating && (
+            <DownloadButton
+              markdown={translatedMarkdown!}
+              filename={`tweet-${tweetHandle}-zh.md`}
+              label="Download 中文 .md"
+            />
           )}
         </div>
       </div>
@@ -115,20 +132,6 @@ export default function ContentDisplay({
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-        <DownloadButton
-          markdown={originalMarkdown}
-          filename={`tweet-${tweetHandle}-en.md`}
-        />
-        {hasContent && !isTranslating && (
-          <DownloadButton
-            markdown={translatedMarkdown!}
-            filename={`tweet-${tweetHandle}-zh.md`}
-            label="Download 中文 .md"
-          />
-        )}
       </div>
     </div>
   );
