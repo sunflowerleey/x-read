@@ -9,17 +9,17 @@
 | `lib/alignBlocks.ts` | 49 | **A** | 6 | Yes |
 | `lib/cleanJinaMarkdown.ts` | 313 | **B** | 21 | Yes |
 | `lib/escapeHtml.ts` | 26 | **A** | 7 | Yes |
-| `lib/gemini.ts` | 58 | **C** | 0 | No |
+| `lib/gemini.ts` | 58 | **A** | 3 | Yes |
 | `lib/markdown.ts` | 108 | **B** | 12 | Yes |
 | `lib/splitMarkdown.ts` | 104 | **B** | 8 | Yes |
 | `lib/twitter.ts` | 107 | **B** | 12 | Yes |
 | `lib/types.ts` | 30 | **B** | 0 | No |
-| `lib/webpage.ts` | 63 | **C** | 0 | No |
+| `lib/webpage.ts` | 63 | **A** | 5 | Yes |
 
 ## Summary
 - **Total lib files:** 9
-- **Files with tests:** 6 / 9
-- **Total test cases:** 66
+- **Files with tests:** 8 / 9
+- **Total test cases:** 74
 - **Total lib lines:** 858
 
 *Last updated: 2026-04-03*

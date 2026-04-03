@@ -45,10 +45,10 @@ for f in src/lib/*.ts; do
     continue
   fi
 
-  # Grade C: no tests (warn but don't fail)
+  # Grade C: no tests — also fail
   if [ "$tests" -eq 0 ]; then
-    echo "WARN: $basename — grade C (${lines} lines, no tests)"
-    warnings=$((warnings + 1))
+    echo "FAIL: $basename — grade C (${lines} lines, no tests)"
+    errors=$((errors + 1))
     continue
   fi
 
@@ -61,9 +61,5 @@ if [ $errors -gt 0 ]; then
   exit 1
 fi
 
-if [ $warnings -gt 0 ]; then
-  echo "PASSED with $warnings warning(s): some modules have no tests yet."
-else
-  echo "PASSED: all modules at grade B or above."
-fi
+echo "PASSED: all modules have tests."
 exit 0
