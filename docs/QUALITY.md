@@ -7,17 +7,18 @@
 | File | Lines | Grade | Tests | Has Test File |
 |------|-------|-------|-------|---------------|
 | `lib/alignBlocks.ts` | 49 | **A** | 6 | Yes |
+| `lib/cleanJinaMarkdown.ts` | 190 | **B** | 18 | Yes |
 | `lib/escapeHtml.ts` | 26 | **A** | 7 | Yes |
 | `lib/gemini.ts` | 58 | **C** | 0 | No |
-| `lib/markdown.ts` | 83 | **C** | 0 | No |
+| `lib/markdown.ts` | 83 | **A** | 9 | Yes |
 | `lib/splitMarkdown.ts` | 104 | **B** | 8 | Yes |
-| `lib/twitter.ts` | 307 | **B** | 8 | Yes |
+| `lib/twitter.ts` | 104 | **B** | 8 | Yes |
 | `lib/types.ts` | 21 | **B** | 0 | No |
 
 ## Summary
-- **Total lib files:** 7
-- **Files with tests:** 4 / 7
-- **Total test cases:** 29
-- **Total lib lines:** 648
+- **Total lib files:** 8
+- **Files with tests:** 6 / 8
+- **Total test cases:** 56
+- **Total lib lines:** 635
 
-*Last updated: 2026-04-02*
+*Last updated: 2026-04-03*
