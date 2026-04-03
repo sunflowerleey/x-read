@@ -18,7 +18,8 @@ Stack: Next.js 16 + React 19 + TypeScript + Tailwind CSS 4.
 ## Automated Feedback Loops (Hooks)
 - After editing any `.ts`/`.tsx` file: lint + typecheck runs automatically
 - After editing any `.test.ts` file: tests run automatically
-- CI runs: lint → typecheck → layer guard → tests on every push/PR
+- CI runs: lint → typecheck → layer guard → quality gate → unit tests + E2E (parallel)
+- Quality gate: D-grade modules (>200 lines, no tests) block merge; C-grade warns
 
 ## Architecture (5 layers, bottom-up)
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full details.
