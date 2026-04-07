@@ -15,6 +15,8 @@ export interface ContentData {
   createdAt: string;
 
   // Twitter-specific (optional)
+  /** Tweet text body (Twitter only) */
+  text?: string;
   likes?: number;
   retweets?: number;
   replies?: number;

@@ -27,8 +27,10 @@ export function tweetToMarkdown(content: ContentData): string {
 
   lines.push(`# Tweet by @${content.authorHandle}`);
   lines.push("");
-  // For regular tweets, content.title may be "Tweet by @handle", use articleTitle if available
-  lines.push("");
+  if (content.text) {
+    lines.push(content.text);
+    lines.push("");
+  }
 
   if (content.quotedTweet) {
     lines.push(

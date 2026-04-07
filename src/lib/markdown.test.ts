@@ -11,6 +11,7 @@ const baseTweet: ContentData = {
   authorAvatar: "https://example.com/avatar.jpg",
   createdAt: "Mon Jan 01 00:00:00 +0000 2026",
   language: "en",
+  text: "Hello world from the tweet body!",
   likes: 100,
   retweets: 50,
   replies: 10,
@@ -36,6 +37,22 @@ describe("tweetToMarkdown", () => {
     expect(md).toContain("**Author:** Test User (@testuser)");
     expect(md).toContain("**Likes:** 100");
     expect(md).toContain("[View Original](https://x.com/testuser/status/123)");
+  });
+
+  it("includes the tweet text body", () => {
+    const md = tweetToMarkdown(baseTweet);
+    expect(md).toContain("Hello world from the tweet body!");
+  });
+
+  it("handles multiline tweet text", () => {
+    const tweet: ContentData = {
+      ...baseTweet,
+      text: "Line one.\n\nLine two.\n\nLine three.",
+    };
+    const md = tweetToMarkdown(tweet);
+    expect(md).toContain("Line one.");
+    expect(md).toContain("Line two.");
+    expect(md).toContain("Line three.");
   });
 
   it("includes quoted tweet as blockquote", () => {
