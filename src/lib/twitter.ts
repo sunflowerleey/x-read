@@ -64,6 +64,7 @@ export async function fetchTweet(tweetId: string): Promise<ContentData> {
     authorHandle: t.author?.screen_name || "unknown",
     authorAvatar: t.author?.avatar_url || "",
     createdAt: t.created_at || "",
+    text: t.text || "",
     language: t.lang || "unknown",
     likes: t.likes || 0,
     retweets: t.retweets || 0,
