@@ -4,13 +4,19 @@
  * Targets article-style pages (research papers, blog posts).
  */
 
+/** Max length for a single extracted block — anything longer is likely embedded data, not prose. */
+const MAX_BLOCK_LENGTH = 10_000;
+
 /** Convert <img> tags to markdown image syntax before stripping other tags. */
 function imgTagsToMarkdown(html: string, baseUrl?: string): string {
   return html.replace(/<img\b[^>]*>/gi, (tag) => {
     const srcMatch = tag.match(/src=["']([^"']+)["']/i);
     const altMatch = tag.match(/alt=["']([^"']*?)["']/i);
     if (!srcMatch) return "";
-    const src = resolveUrl(srcMatch[1], baseUrl);
+    const rawSrc = srcMatch[1];
+    // Skip data URIs — they're often multi-MB base64 blobs that bloat the output
+    if (rawSrc.startsWith("data:")) return "";
+    const src = resolveUrl(rawSrc, baseUrl);
     const alt = altMatch?.[1] || "";
     return `![${alt}](${src})`;
   });
@@ -92,7 +98,7 @@ export function extractBlocks(html: string, baseUrl?: string): ExtractedBlock[] 
 
     if (tag === "pre") {
       const text = stripTags(inner);
-      if (text) blocks.push({ type: "code", text });
+      if (text && text.length < MAX_BLOCK_LENGTH) blocks.push({ type: "code", text });
       continue;
     }
 
@@ -100,7 +106,8 @@ export function extractBlocks(html: string, baseUrl?: string): ExtractedBlock[] 
     const withImages = imgTagsToMarkdown(inner, baseUrl);
     const text = stripTags(withImages);
 
-    if (!text) continue;
+    // Skip empty blocks or blocks with excessive length (likely embedded data)
+    if (!text || text.length > MAX_BLOCK_LENGTH) continue;
 
     if (tag.startsWith("h") && tag.length === 2) {
       const level = parseInt(tag[1], 10);
@@ -174,6 +181,21 @@ export function extractTitle(html: string): string | undefined {
 }
 
 /**
+ * Remove non-content elements (scripts, styles, SVGs, interactive widgets)
+ * that would pollute the extracted text.
+ */
+export function stripNonContent(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, "")
+    .replace(/<canvas\b[^>]*>[\s\S]*?<\/canvas>/gi, "")
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, "")
+    .replace(/<nav\b[^>]*>[\s\S]*?<\/nav>/gi, "")
+    .replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, "");
+}
+
+/**
  * Convert raw HTML to markdown.
  * @param html - Raw HTML string
  * @param baseUrl - Base URL for resolving relative image paths
@@ -181,7 +203,8 @@ export function extractTitle(html: string): string | undefined {
  */
 export function htmlToMarkdown(html: string, baseUrl?: string): { title: string | undefined; markdown: string } {
   const title = extractTitle(html);
-  const blocks = extractBlocks(html, baseUrl);
+  const cleaned = stripNonContent(html);
+  const blocks = extractBlocks(cleaned, baseUrl);
   const markdown = blocksToMarkdown(blocks);
   return { title, markdown };
 }

@@ -10,7 +10,7 @@
 | `lib/cleanJinaMarkdown.ts` | 313 | **B** | 21 | Yes |
 | `lib/escapeHtml.ts` | 26 | **A** | 7 | Yes |
 | `lib/gemini.ts` | 67 | **A** | 3 | Yes |
-| `lib/htmlToMarkdown.ts` | 187 | **B** | 21 | Yes |
+| `lib/htmlToMarkdown.ts` | 210 | **B** | 24 | Yes |
 | `lib/markdown.ts` | 110 | **B** | 14 | Yes |
 | `lib/splitMarkdown.ts` | 104 | **B** | 8 | Yes |
 | `lib/twitter.ts` | 108 | **B** | 12 | Yes |
@@ -20,7 +20,7 @@
 ## Summary
 - **Total lib files:** 10
 - **Files with tests:** 9 / 10
-- **Total test cases:** 99
-- **Total lib lines:** 1131
+- **Total test cases:** 102
+- **Total lib lines:** 1154
 
 *Last updated: 2026-04-13*
