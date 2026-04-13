@@ -204,7 +204,45 @@ export function stripNonContent(html: string): string {
 export function htmlToMarkdown(html: string, baseUrl?: string): { title: string | undefined; markdown: string } {
   const title = extractTitle(html);
   const cleaned = stripNonContent(html);
-  const blocks = extractBlocks(cleaned, baseUrl);
+  const blocks = deduplicateHeadings(extractBlocks(cleaned, baseUrl));
   const markdown = blocksToMarkdown(blocks);
   return { title, markdown };
+}
+
+/**
+ * Remove consecutive headings with near-identical text.
+ * Common in Distill-style pages where <title> and <h1> both get extracted.
+ */
+function deduplicateHeadings(blocks: ExtractedBlock[]): ExtractedBlock[] {
+  const result: ExtractedBlock[] = [];
+
+  for (const block of blocks) {
+    if (block.type === "heading" && result.length > 0) {
+      const prev = result[result.length - 1];
+      if (prev.type === "heading" && isSimilarText(prev.text, block.text)) {
+        continue; // skip duplicate
+      }
+    }
+    result.push(block);
+  }
+
+  return result;
+}
+
+/** Check if two strings are similar (>80% character overlap after normalization). */
+function isSimilarText(a: string, b: string): boolean {
+  const na = a.toLowerCase().replace(/\s+/g, " ").trim();
+  const nb = b.toLowerCase().replace(/\s+/g, " ").trim();
+  if (na === nb) return true;
+
+  const longer = na.length > nb.length ? na : nb;
+  const shorter = na.length > nb.length ? nb : na;
+  if (longer.length === 0) return true;
+
+  // Check if shorter is a substantial substring of longer
+  if (longer.includes(shorter) && shorter.length / longer.length > 0.8) {
+    return true;
+  }
+
+  return false;
 }
