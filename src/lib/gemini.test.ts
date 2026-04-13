@@ -113,26 +113,25 @@ describe("translateChunk", () => {
 });
 
 describe("stripImages", () => {
-  it("replaces image lines with placeholders", () => {
+  it("removes standalone image lines and tracks their positions", () => {
     const md = "# Title\n\n![photo](https://example.com/img.png)\n\nSome text.";
     const { text, images } = stripImages(md);
 
     expect(text).not.toContain("![photo]");
-    expect(text).toContain("<!--IMG_PLACEHOLDER_0-->");
+    expect(text).not.toContain("IMG_PLACEHOLDER");
     expect(text).toContain("Some text.");
-    expect(images.size).toBe(1);
-    expect(images.get("<!--IMG_PLACEHOLDER_0-->")).toBe(
-      "![photo](https://example.com/img.png)"
-    );
+    expect(images).toHaveLength(1);
+    expect(images[0].image).toBe("![photo](https://example.com/img.png)");
   });
 
   it("handles multiple images", () => {
     const md = "![a](1.png)\n\nText\n\n![b](2.png)";
     const { text, images } = stripImages(md);
 
-    expect(images.size).toBe(2);
-    expect(text).toContain("<!--IMG_PLACEHOLDER_0-->");
-    expect(text).toContain("<!--IMG_PLACEHOLDER_1-->");
+    expect(images).toHaveLength(2);
+    expect(text).not.toContain("![a]");
+    expect(text).not.toContain("![b]");
+    expect(text).toContain("Text");
   });
 
   it("preserves inline image references (not on their own line)", () => {
@@ -143,25 +142,52 @@ describe("stripImages", () => {
     expect(text).toContain("![icon](i.png)");
   });
 
-  it("returns empty map when no images", () => {
+  it("returns empty array when no images", () => {
     const md = "# Title\n\nJust text.";
     const { text, images } = stripImages(md);
 
     expect(text).toBe(md);
-    expect(images.size).toBe(0);
+    expect(images).toHaveLength(0);
   });
 });
 
 describe("restoreImages", () => {
-  it("replaces placeholders with original image markdown", () => {
-    const images = new Map([
-      ["<!--IMG_PLACEHOLDER_0-->", "![photo](https://example.com/img.png)"],
-    ]);
-    const translated = "# 标题\n\n<!--IMG_PLACEHOLDER_0-->\n\n一些文字。";
+  it("re-inserts images at their original line positions", () => {
+    const images = [
+      { lineIndex: 2, image: "![photo](https://example.com/img.png)" },
+    ];
+    const translated = "# 标题\n\n一些文字。";
     const result = restoreImages(translated, images);
 
     expect(result).toContain("![photo](https://example.com/img.png)");
-    expect(result).not.toContain("<!--IMG_PLACEHOLDER_0-->");
+    const lines = result.split("\n");
+    expect(lines[2]).toBe("![photo](https://example.com/img.png)");
+  });
+
+  it("clamps positions when translated text is shorter", () => {
+    const images = [
+      { lineIndex: 100, image: "![img](url)" },
+    ];
+    const translated = "Short\ntext";
+    const result = restoreImages(translated, images);
+
+    expect(result).toContain("![img](url)");
+  });
+
+  it("handles multiple images in correct order", () => {
+    const images = [
+      { lineIndex: 1, image: "![a](1.png)" },
+      { lineIndex: 3, image: "![b](2.png)" },
+    ];
+    const translated = "Line 0\nLine 1\nLine 2\nLine 3";
+    const result = restoreImages(translated, images);
+
+    const lines = result.split("\n");
+    expect(lines).toContain("![a](1.png)");
+    expect(lines).toContain("![b](2.png)");
+    expect(lines.indexOf("![a](1.png)")).toBeLessThan(
+      lines.indexOf("![b](2.png)")
+    );
   });
 });
 

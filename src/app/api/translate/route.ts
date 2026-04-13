@@ -7,6 +7,8 @@ import {
   splitIntoChunks,
 } from "@/lib/gemini";
 
+type ImageEntry = { lineIndex: number; image: string };
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
 function streamResponse(
   encoder: TextEncoder,
   markdown: string,
-  images: Map<string, string>
+  images: ImageEntry[]
 ) {
   const stream = new ReadableStream({
     async start(controller) {
@@ -68,8 +70,8 @@ function streamResponse(
             encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`)
           );
         }
-        // Send image-restored final version so client can reconcile
-        if (images.size > 0) {
+        // After streaming completes, send the full text with images restored
+        if (images.length > 0) {
           const full = restoreImages(parts.join(""), images);
           controller.enqueue(
             encoder.encode(
@@ -102,7 +104,7 @@ function streamResponse(
 function parallelResponse(
   encoder: TextEncoder,
   chunks: string[],
-  images: Map<string, string>
+  images: ImageEntry[]
 ) {
   const stream = new ReadableStream({
     async start(controller) {
@@ -111,7 +113,7 @@ function parallelResponse(
         const promises = chunks.map((chunk) => translateChunk(chunk));
         const results = await Promise.all(promises);
 
-        // Emit results in order
+        // Emit full result with images restored
         const full = restoreImages(results.join("\n\n"), images);
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ text: full })}\n\n`)
