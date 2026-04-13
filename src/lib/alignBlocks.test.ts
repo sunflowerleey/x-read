@@ -12,25 +12,23 @@ describe("alignBlocks", () => {
     ]);
   });
 
-  it("handles extra blocks on EN side", () => {
+  it("merges extra EN blocks into last pair to prevent drift", () => {
     const en = ["# Title", "P1.", "P2."];
     const zh = ["# 标题", "段落。"];
     const result = alignBlocks(en, zh);
     expect(result).toEqual([
       ["# Title", "# 标题"],
-      ["P1.", "段落。"],
-      ["P2.", ""],
+      ["P1.\n\nP2.", "段落。"],
     ]);
   });
 
-  it("handles extra blocks on ZH side", () => {
+  it("merges extra ZH blocks into last pair to prevent drift", () => {
     const en = ["# Title", "P1."];
     const zh = ["# 标题", "段落一。", "段落二。"];
     const result = alignBlocks(en, zh);
     expect(result).toEqual([
       ["# Title", "# 标题"],
-      ["P1.", "段落一。"],
-      ["", "段落二。"],
+      ["P1.", "段落一。\n\n段落二。"],
     ]);
   });
 
@@ -39,12 +37,12 @@ describe("alignBlocks", () => {
     const zh = ["# 一", "甲。", "## 二", "丙。"];
     const result = alignBlocks(en, zh);
     // Section 1: en has 3 blocks (heading + 2 paras), zh has 2 (heading + 1 para)
+    // Extra EN block "B." is merged into last pair with "甲。"
     expect(result[0]).toEqual(["# S1", "# 一"]);
-    expect(result[1]).toEqual(["A.", "甲。"]);
-    expect(result[2]).toEqual(["B.", ""]);
+    expect(result[1]).toEqual(["A.\n\nB.", "甲。"]);
     // Section 2
-    expect(result[3]).toEqual(["## S2", "## 二"]);
-    expect(result[4]).toEqual(["C.", "丙。"]);
+    expect(result[2]).toEqual(["## S2", "## 二"]);
+    expect(result[3]).toEqual(["C.", "丙。"]);
   });
 
   it("handles empty ZH (translation not started)", () => {

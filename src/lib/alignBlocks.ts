@@ -81,16 +81,38 @@ export function headingLevel(block: string | undefined): number {
   return match ? match[1].length : -1;
 }
 
-/** Emit a pair of aligned sections, block by block. */
+/**
+ * Emit a pair of aligned sections, block by block.
+ * When one side has more blocks, excess blocks are merged into the last
+ * matched pair so that alignment doesn't drift across sections.
+ */
 function emitPair(
   result: [string, string][],
   enGroup: string[],
   zhGroup: string[]
 ): void {
-  const maxLen = Math.max(enGroup.length, zhGroup.length);
-  for (let i = 0; i < maxLen; i++) {
-    result.push([enGroup[i] || "", zhGroup[i] || ""]);
+  if (enGroup.length === 0 && zhGroup.length === 0) return;
+
+  const minLen = Math.min(enGroup.length, zhGroup.length);
+
+  if (minLen === 0) {
+    // One side is completely empty — emit all blocks from the other side
+    const maxLen = Math.max(enGroup.length, zhGroup.length);
+    for (let i = 0; i < maxLen; i++) {
+      result.push([enGroup[i] || "", zhGroup[i] || ""]);
+    }
+    return;
   }
+
+  // Emit 1:1 pairs up to the shorter side minus 1
+  for (let i = 0; i < minLen - 1; i++) {
+    result.push([enGroup[i], zhGroup[i]]);
+  }
+
+  // Merge excess blocks into the last pair
+  const enRest = enGroup.slice(minLen - 1).join("\n\n");
+  const zhRest = zhGroup.slice(minLen - 1).join("\n\n");
+  result.push([enRest, zhRest]);
 }
 
 /**
