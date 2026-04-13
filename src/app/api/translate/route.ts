@@ -12,10 +12,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Payload size limit: reject content > 100KB
-    if (markdown.length > 100_000) {
+    // Payload size limit: reject content > 500KB
+    // Gemini 2.5 Flash supports 1M tokens (~750KB text), but leave headroom
+    // for the system prompt and thinking budget
+    if (markdown.length > 500_000) {
       return new Response(
-        JSON.stringify({ error: "Content too large (max 100KB)" }),
+        JSON.stringify({ error: "Content too large (max 500KB)" }),
         { status: 413, headers: { "Content-Type": "application/json" } }
       );
     }
