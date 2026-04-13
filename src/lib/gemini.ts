@@ -13,20 +13,7 @@ function getAI(): GoogleGenAI {
   return _ai;
 }
 
-export async function* streamTranslateToChineseMarkdown(
-  markdown: string
-): AsyncGenerator<string> {
-  const response = await getAI().models.generateContentStream({
-    model: "gemini-2.5-flash",
-    config: {
-      thinkingConfig: { thinkingBudget: 8192 },
-    },
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: `你是一位精通英汉双语的专业翻译。请运用"英语思维"方法，将下方英文 markdown 翻译成流畅、精准且自然的简体中文。
+const TRANSLATION_PROMPT = `你是一位精通英汉双语的专业翻译。请运用"英语思维"方法，将下方英文 markdown 翻译成流畅、精准且自然的简体中文。
 
 ## 翻译方法（在你的内部思考中完成，不要输出）
 
@@ -41,19 +28,123 @@ export async function* streamTranslateToChineseMarkdown(
 ## 输出规则
 
 - 只输出最终中文译文，不要输出任何分析、解释或思考过程
-- 完整保留所有 markdown 格式（标题、加粗、链接、图片、引用、代码块等）
+- 完整保留所有 markdown 格式（标题、加粗、链接、引用、代码块等）
 - 保持完全相同的结构：相同数量的标题、段落、标题层级
 - 原文每个标题对应译文恰好一个标题，每个段落对应恰好一个段落
 - 不要合并或拆分段落
 - 不翻译：@用户名、URL、专有名词（人名、公司名、产品名）、代码块内容
 - 保留数字和统计数据原样
-- 保留图片 markdown 原样（不修改 ![...](...) 语法）
 
 ## 待翻译内容
 
-${markdown}`,
-          },
-        ],
+`;
+
+/**
+ * Strip image markdown lines and replace with placeholders.
+ * Returns the cleaned text and a list of original image lines for restoration.
+ */
+export function stripImages(markdown: string): {
+  text: string;
+  images: Map<string, string>;
+} {
+  const images = new Map<string, string>();
+  let counter = 0;
+
+  const text = markdown.replace(/^!\[.*?\]\(.*?\)$/gm, (match) => {
+    const placeholder = `<!--IMG_PLACEHOLDER_${counter}-->`;
+    images.set(placeholder, match);
+    counter++;
+    return placeholder;
+  });
+
+  return { text, images };
+}
+
+/**
+ * Restore image placeholders with original image markdown.
+ */
+export function restoreImages(
+  translated: string,
+  images: Map<string, string>
+): string {
+  let result = translated;
+  for (const [placeholder, original] of images) {
+    result = result.replace(placeholder, original);
+  }
+  return result;
+}
+
+/**
+ * Split markdown into chunks by h2 headings for parallel translation.
+ * Each chunk is a self-contained section.
+ * Short documents (< threshold) are returned as a single chunk.
+ */
+export function splitIntoChunks(
+  markdown: string,
+  chunkThreshold = 5_000
+): string[] {
+  if (markdown.length < chunkThreshold) {
+    return [markdown];
+  }
+
+  const lines = markdown.split("\n");
+  const chunks: string[] = [];
+  let current: string[] = [];
+
+  for (const line of lines) {
+    // Split on h2 headings (## ...)
+    if (line.startsWith("## ") && current.length > 0) {
+      chunks.push(current.join("\n"));
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+
+  if (current.length > 0) {
+    chunks.push(current.join("\n"));
+  }
+
+  return chunks;
+}
+
+/**
+ * Translate a single chunk of markdown (non-streaming).
+ * Used for parallel translation of multiple chunks.
+ */
+export async function translateChunk(markdown: string): Promise<string> {
+  const response = await getAI().models.generateContent({
+    model: "gemini-2.5-flash",
+    config: {
+      thinkingConfig: { thinkingBudget: 8192 },
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: TRANSLATION_PROMPT + markdown }],
+      },
+    ],
+  });
+
+  return response.text ?? "";
+}
+
+/**
+ * Stream-translate a short markdown string (single Gemini call).
+ * Used for small documents that don't benefit from chunking.
+ */
+export async function* streamTranslateToChineseMarkdown(
+  markdown: string
+): AsyncGenerator<string> {
+  const response = await getAI().models.generateContentStream({
+    model: "gemini-2.5-flash",
+    config: {
+      thinkingConfig: { thinkingBudget: 8192 },
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: TRANSLATION_PROMPT + markdown }],
       },
     ],
   });
