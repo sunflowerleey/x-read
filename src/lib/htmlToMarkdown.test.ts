@@ -63,6 +63,41 @@ describe("extractBlocks", () => {
       "list-item",
     ]);
   });
+
+  it("extracts standalone img tags", () => {
+    const html = '<img src="photo.png" alt="A photo"/>';
+    const blocks = extractBlocks(html, "https://example.com/page/");
+    expect(blocks).toEqual([
+      { type: "image", text: "![A photo](https://example.com/page/photo.png)" },
+    ]);
+  });
+
+  it("extracts images inside figure elements", () => {
+    const html = '<figure><img src="chart.png" alt="Chart"/><figcaption>Figure 1</figcaption></figure>';
+    const blocks = extractBlocks(html, "https://example.com/");
+    const types = blocks.map((b) => b.type);
+    expect(types).toContain("image");
+    const imgBlock = blocks.find((b) => b.type === "image");
+    expect(imgBlock?.text).toBe("![Chart](https://example.com/chart.png)");
+  });
+
+  it("converts inline images in paragraphs to markdown syntax", () => {
+    const html = '<p>See this: <img src="diagram.png" alt="diagram"/> for details.</p>';
+    const blocks = extractBlocks(html, "https://example.com/docs/");
+    expect(blocks[0].text).toContain("![diagram](https://example.com/docs/diagram.png)");
+  });
+
+  it("resolves relative image URLs against base URL", () => {
+    const html = '<img src="images/fig1.png"/>';
+    const blocks = extractBlocks(html, "https://site.com/papers/2026/index.html");
+    expect(blocks[0].text).toBe("![](https://site.com/papers/2026/images/fig1.png)");
+  });
+
+  it("keeps absolute image URLs unchanged", () => {
+    const html = '<img src="https://cdn.example.com/photo.jpg" alt="photo"/>';
+    const blocks = extractBlocks(html);
+    expect(blocks[0].text).toBe("![photo](https://cdn.example.com/photo.jpg)");
+  });
 });
 
 describe("blocksToMarkdown", () => {
@@ -144,5 +179,20 @@ describe("htmlToMarkdown", () => {
     expect(result.markdown).toContain("## Introduction");
     expect(result.markdown).toContain("### Finding emotion vectors");
     expect(result.markdown).toContain("emotion representations");
+  });
+
+  it("resolves relative image URLs with base URL", () => {
+    const html = `
+      <html>
+      <head><title>Paper</title></head>
+      <body>
+        <h2>Results</h2>
+        <img src="hero.png" alt="Hero figure"/>
+        <p>As shown in the figure above.</p>
+      </body>
+      </html>
+    `;
+    const result = htmlToMarkdown(html, "https://example.com/2026/paper/index.html");
+    expect(result.markdown).toContain("![Hero figure](https://example.com/2026/paper/hero.png)");
   });
 });
