@@ -54,6 +54,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
+const SSE_HEADERS = {
+  "Content-Type": "text/event-stream",
+  "Cache-Control": "no-cache",
+  Connection: "keep-alive",
+} as const;
+
 /** Stream a single translation call (for short content). */
 function streamResponse(
   encoder: TextEncoder,
@@ -91,16 +97,10 @@ function streamResponse(
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
+  return new Response(stream, { headers: SSE_HEADERS });
 }
 
-/** Translate chunks in parallel, emit SSE events in order. */
+/** Translate chunks in parallel (with concurrency limit), emit SSE in order. */
 function parallelResponse(
   encoder: TextEncoder,
   chunks: string[],
@@ -109,9 +109,14 @@ function parallelResponse(
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // Fire all translations in parallel
-        const promises = chunks.map((chunk) => translateChunk(chunk));
-        const results = await Promise.all(promises);
+        // Translate with limited concurrency to avoid Gemini rate limits
+        const settled = await translateWithConcurrency(chunks, 4);
+
+        const results = settled.map((r, i) =>
+          r.status === "fulfilled"
+            ? r.value
+            : `[翻译失败: ${chunks[i].slice(0, 50)}...]`
+        );
 
         // Emit full result with images restored
         const full = restoreImages(results.join("\n\n"), images);
@@ -130,11 +135,35 @@ function parallelResponse(
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
+  return new Response(stream, { headers: SSE_HEADERS });
+}
+
+/**
+ * Translate chunks with limited concurrency.
+ * Runs at most `limit` workers in parallel to avoid Gemini rate limits.
+ */
+async function translateWithConcurrency(
+  chunks: string[],
+  limit: number
+): Promise<PromiseSettledResult<string>[]> {
+  const results: PromiseSettledResult<string>[] = new Array(chunks.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < chunks.length) {
+      const i = nextIndex++;
+      try {
+        const value = await translateChunk(chunks[i]);
+        results[i] = { status: "fulfilled", value };
+      } catch (reason) {
+        results[i] = { status: "rejected", reason };
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, chunks.length) }, () => worker())
+  );
+
+  return results;
 }

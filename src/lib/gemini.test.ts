@@ -230,9 +230,21 @@ describe("splitIntoChunks", () => {
     expect(chunks[2]).toContain("## Section Two");
   });
 
-  it("does not split on h3 or lower headings", () => {
+  it("further splits oversized chunks by h3 headings", () => {
+    // Build a chunk that exceeds MAX_CHUNK_SIZE (30000)
+    const longPara = "A".repeat(31_000);
+    const md = `# Title\n\nIntro.\n\n## Main\n\n${longPara}\n\n### Sub1\n\nText\n\n### Sub2\n\nMore text`;
+    const chunks = splitIntoChunks(md, 10); // low threshold to force split
+    // The ## Main chunk is oversized, so should be split by ###
+    expect(chunks.length).toBeGreaterThanOrEqual(3); // Title chunk + Sub1 + Sub2
+    expect(chunks.some((c) => c.includes("### Sub1"))).toBe(true);
+    expect(chunks.some((c) => c.includes("### Sub2"))).toBe(true);
+  });
+
+  it("keeps small h2 chunks intact even with h3 headings", () => {
     const md = "## Main\n\n### Sub1\n\nText\n\n### Sub2\n\nMore text";
     const chunks = splitIntoChunks(md, 10);
+    // Under MAX_CHUNK_SIZE, no further splitting
     expect(chunks).toHaveLength(1);
   });
 });

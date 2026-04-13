@@ -95,9 +95,12 @@ function splitToBlocks(markdown: string): string[] {
   return markdown.split(/\n\n+/).filter((b) => b.trim() !== "");
 }
 
+/** Max size for a single translation chunk (chars). */
+const MAX_CHUNK_SIZE = 30_000;
+
 /**
- * Split markdown into chunks by h2 headings for parallel translation.
- * Each chunk is a self-contained section.
+ * Split markdown into chunks for parallel translation.
+ * First splits by h2 headings, then further splits oversized chunks by h3.
  * Short documents (< threshold) are returned as a single chunk.
  */
 export function splitIntoChunks(
@@ -108,13 +111,30 @@ export function splitIntoChunks(
     return [markdown];
   }
 
+  // First pass: split by ## headings
+  const coarseChunks = splitByHeadingLevel(markdown, "## ");
+
+  // Second pass: split oversized chunks by ### headings
+  const chunks: string[] = [];
+  for (const chunk of coarseChunks) {
+    if (chunk.length > MAX_CHUNK_SIZE) {
+      const subChunks = splitByHeadingLevel(chunk, "### ");
+      chunks.push(...subChunks);
+    } else {
+      chunks.push(chunk);
+    }
+  }
+
+  return chunks;
+}
+
+function splitByHeadingLevel(markdown: string, prefix: string): string[] {
   const lines = markdown.split("\n");
   const chunks: string[] = [];
   let current: string[] = [];
 
   for (const line of lines) {
-    // Split on h2 headings (## ...)
-    if (line.startsWith("## ") && current.length > 0) {
+    if (line.startsWith(prefix) && current.length > 0) {
       chunks.push(current.join("\n"));
       current = [line];
     } else {
