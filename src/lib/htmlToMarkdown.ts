@@ -4,6 +4,30 @@
  * Targets article-style pages (research papers, blog posts).
  */
 
+/** Convert <img> tags to markdown image syntax before stripping other tags. */
+function imgTagsToMarkdown(html: string, baseUrl?: string): string {
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const srcMatch = tag.match(/src=["']([^"']+)["']/i);
+    const altMatch = tag.match(/alt=["']([^"']*?)["']/i);
+    if (!srcMatch) return "";
+    const src = resolveUrl(srcMatch[1], baseUrl);
+    const alt = altMatch?.[1] || "";
+    return `![${alt}](${src})`;
+  });
+}
+
+/** Resolve a potentially relative URL against a base URL. */
+function resolveUrl(src: string, baseUrl?: string): string {
+  if (!baseUrl || /^https?:\/\//i.test(src) || src.startsWith("data:")) {
+    return src;
+  }
+  try {
+    return new URL(src, baseUrl).href;
+  } catch {
+    return src;
+  }
+}
+
 /** Remove HTML tags, decode common entities, and trim. */
 function stripTags(html: string): string {
   return html
@@ -25,7 +49,7 @@ function innerHtml(match: string, tagName: string): string {
 }
 
 interface ExtractedBlock {
-  type: "heading" | "paragraph" | "list-item" | "blockquote" | "code";
+  type: "heading" | "paragraph" | "list-item" | "blockquote" | "code" | "image";
   level?: number;
   text: string;
 }
@@ -34,19 +58,47 @@ interface ExtractedBlock {
  * Parse HTML into ordered content blocks.
  * Processes elements in document order by finding them sequentially.
  */
-export function extractBlocks(html: string): ExtractedBlock[] {
+export function extractBlocks(html: string, baseUrl?: string): ExtractedBlock[] {
   const blocks: ExtractedBlock[] = [];
 
-  // Combined pattern for all block-level elements we care about
+  // Combined pattern: block-level elements + standalone/figure images
   const pattern =
-    /<(h[1-6]|p|li|blockquote|pre|figcaption)\b[^>]*>[\s\S]*?<\/\1>/gi;
+    /<(h[1-6]|p|li|blockquote|pre|figcaption|figure|img)\b[^>]*(?:>[\s\S]*?<\/\1>|\/?>)/gi;
 
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(html)) !== null) {
     const [fullMatch, tagName] = match;
     const tag = tagName.toLowerCase();
+
+    // Standalone <img> (not inside <p> or <figure>)
+    if (tag === "img") {
+      const md = imgTagsToMarkdown(fullMatch, baseUrl);
+      if (md) blocks.push({ type: "image", text: md });
+      continue;
+    }
+
+    // <figure> — extract only <img> tags, ignore other content (figcaption handled separately)
+    if (tag === "figure") {
+      const inner = innerHtml(fullMatch, tag);
+      const imgTags = inner.match(/<img\b[^>]*\/?>/gi);
+      if (imgTags) {
+        const imgMd = imgTags.map((t) => imgTagsToMarkdown(t, baseUrl)).join("\n").trim();
+        if (imgMd) blocks.push({ type: "image", text: imgMd });
+      }
+      continue;
+    }
+
     const inner = innerHtml(fullMatch, tag);
-    const text = stripTags(inner);
+
+    if (tag === "pre") {
+      const text = stripTags(inner);
+      if (text) blocks.push({ type: "code", text });
+      continue;
+    }
+
+    // For other tags, convert inline <img> to markdown before stripping
+    const withImages = imgTagsToMarkdown(inner, baseUrl);
+    const text = stripTags(withImages);
 
     if (!text) continue;
 
@@ -57,8 +109,6 @@ export function extractBlocks(html: string): ExtractedBlock[] {
       blocks.push({ type: "list-item", text });
     } else if (tag === "blockquote") {
       blocks.push({ type: "blockquote", text });
-    } else if (tag === "pre") {
-      blocks.push({ type: "code", text });
     } else {
       // p, figcaption
       blocks.push({ type: "paragraph", text });
@@ -95,6 +145,10 @@ export function blocksToMarkdown(blocks: ExtractedBlock[]): string {
         lines.push("```");
         lines.push("");
         break;
+      case "image":
+        lines.push(block.text);
+        lines.push("");
+        break;
     }
   }
 
@@ -121,11 +175,13 @@ export function extractTitle(html: string): string | undefined {
 
 /**
  * Convert raw HTML to markdown.
+ * @param html - Raw HTML string
+ * @param baseUrl - Base URL for resolving relative image paths
  * Returns { title, markdown } where title is extracted from metadata.
  */
-export function htmlToMarkdown(html: string): { title: string | undefined; markdown: string } {
+export function htmlToMarkdown(html: string, baseUrl?: string): { title: string | undefined; markdown: string } {
   const title = extractTitle(html);
-  const blocks = extractBlocks(html);
+  const blocks = extractBlocks(html, baseUrl);
   const markdown = blocksToMarkdown(blocks);
   return { title, markdown };
 }

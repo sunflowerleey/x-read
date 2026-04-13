@@ -96,7 +96,7 @@ async function fetchDirectHtml(url: string): Promise<{
   }
 
   const html = await res.text();
-  const { title: extractedTitle, markdown } = htmlToMarkdown(html);
+  const { title: extractedTitle, markdown } = htmlToMarkdown(html, url);
 
   if (!markdown) {
     throw new Error(
