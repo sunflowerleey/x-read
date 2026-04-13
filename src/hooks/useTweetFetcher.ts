@@ -84,7 +84,11 @@ export function useContentFetcher() {
                 if (parsed.error) {
                   throw new Error(parsed.error);
                 }
-                if (parsed.text) {
+                if (parsed.fullText) {
+                  // Complete translation with images restored
+                  accumulated = parsed.fullText;
+                  setTranslatedMarkdown(accumulated);
+                } else if (parsed.text) {
                   accumulated += parsed.text;
                   setTranslatedMarkdown(accumulated);
                 }
