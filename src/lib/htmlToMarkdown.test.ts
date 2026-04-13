@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractBlocks, blocksToMarkdown, extractTitle, htmlToMarkdown } from "./htmlToMarkdown";
+import { extractBlocks, blocksToMarkdown, extractTitle, htmlToMarkdown, stripNonContent } from "./htmlToMarkdown";
 
 describe("extractBlocks", () => {
   it("extracts headings with correct levels", () => {
@@ -97,6 +97,45 @@ describe("extractBlocks", () => {
     const html = '<img src="https://cdn.example.com/photo.jpg" alt="photo"/>';
     const blocks = extractBlocks(html);
     expect(blocks[0].text).toBe("![photo](https://cdn.example.com/photo.jpg)");
+  });
+
+  it("skips data URI images", () => {
+    const html = '<img src="data:image/png;base64,iVBORw0KGgo..." alt="chart"/>';
+    const blocks = extractBlocks(html);
+    expect(blocks).toEqual([]);
+  });
+
+  it("skips blocks with excessively long text (embedded data)", () => {
+    const longText = "A".repeat(15_000);
+    const html = `<p>${longText}</p><p>Short readable text</p>`;
+    const blocks = extractBlocks(html);
+    expect(blocks).toEqual([{ type: "paragraph", text: "Short readable text" }]);
+  });
+});
+
+describe("stripNonContent", () => {
+  it("removes script, style, svg, canvas, noscript, nav, footer tags", () => {
+    const html = `
+      <h1>Title</h1>
+      <script>var x = 1;</script>
+      <style>.foo { color: red; }</style>
+      <svg><rect/></svg>
+      <canvas></canvas>
+      <noscript>Enable JS</noscript>
+      <nav><a href="/">Home</a></nav>
+      <footer>Copyright</footer>
+      <p>Content</p>
+    `;
+    const cleaned = stripNonContent(html);
+    expect(cleaned).toContain("<h1>Title</h1>");
+    expect(cleaned).toContain("<p>Content</p>");
+    expect(cleaned).not.toContain("var x = 1");
+    expect(cleaned).not.toContain("color: red");
+    expect(cleaned).not.toContain("<svg>");
+    expect(cleaned).not.toContain("<canvas>");
+    expect(cleaned).not.toContain("Enable JS");
+    expect(cleaned).not.toContain("Home");
+    expect(cleaned).not.toContain("Copyright");
   });
 });
 
