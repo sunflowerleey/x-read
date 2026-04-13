@@ -38,7 +38,7 @@ describe("streamTranslateToChineseMarkdown", () => {
       expect.objectContaining({
         model: "gemini-2.5-flash",
         config: expect.objectContaining({
-          thinkingConfig: { thinkingBudget: 0 },
+          thinkingConfig: { thinkingBudget: 8192 },
         }),
       })
     );
@@ -82,6 +82,6 @@ describe("streamTranslateToChineseMarkdown", () => {
     const callArgs = mockGenerateContentStream.mock.calls[0][0];
     const promptText = callArgs.contents[0].parts[0].text;
     expect(promptText).toContain("## Special Content");
-    expect(promptText).toContain("English-to-Chinese");
+    expect(promptText).toContain("英语思维");
   });
 });

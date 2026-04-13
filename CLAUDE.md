@@ -64,7 +64,7 @@ See [docs/QUALITY.md](docs/QUALITY.md) for per-module grades and test coverage.
 ## Key Decisions
 1. FxTwitter + Jina dual-source — metadata vs body. See `src/lib/twitter.ts`
 2. Heading-anchored alignment — limits error propagation. See `src/lib/alignBlocks.ts`
-3. Gemini `thinkingBudget: 0` — reduces TTFT for translation. See `src/lib/gemini.ts`
+3. Gemini `thinkingBudget: 8192` + "英语思维" prompt — deep comprehension before translation. See `src/lib/gemini.ts`
 4. Markdown post-processing pipeline — 5-stage Jina cleanup. See `fetchArticleContent()` in `src/lib/twitter.ts`
 
 ## Workflow Preferences
