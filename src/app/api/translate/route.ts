@@ -7,7 +7,7 @@ import {
   splitIntoChunks,
 } from "@/lib/gemini";
 
-type ImageEntry = { lineIndex: number; image: string };
+type ImageEntry = { blockIndex: number; image: string };
 
 export async function POST(req: NextRequest) {
   try {

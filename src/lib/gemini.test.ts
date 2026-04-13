@@ -113,15 +113,15 @@ describe("translateChunk", () => {
 });
 
 describe("stripImages", () => {
-  it("removes standalone image lines and tracks their positions", () => {
+  it("removes standalone image blocks and tracks by block index", () => {
     const md = "# Title\n\n![photo](https://example.com/img.png)\n\nSome text.";
     const { text, images } = stripImages(md);
 
     expect(text).not.toContain("![photo]");
-    expect(text).not.toContain("IMG_PLACEHOLDER");
     expect(text).toContain("Some text.");
     expect(images).toHaveLength(1);
     expect(images[0].image).toBe("![photo](https://example.com/img.png)");
+    expect(images[0].blockIndex).toBe(1); // after "# Title" block
   });
 
   it("handles multiple images", () => {
@@ -134,11 +134,10 @@ describe("stripImages", () => {
     expect(text).toContain("Text");
   });
 
-  it("preserves inline image references (not on their own line)", () => {
+  it("preserves inline image references (not on their own block)", () => {
     const md = "See ![icon](i.png) in the text";
     const { text } = stripImages(md);
 
-    // Inline images are not on their own line, should not be stripped
     expect(text).toContain("![icon](i.png)");
   });
 
@@ -146,29 +145,35 @@ describe("stripImages", () => {
     const md = "# Title\n\nJust text.";
     const { text, images } = stripImages(md);
 
-    expect(text).toBe(md);
     expect(images).toHaveLength(0);
+    expect(text).toContain("# Title");
+    expect(text).toContain("Just text.");
   });
 });
 
 describe("restoreImages", () => {
-  it("re-inserts images at their original line positions", () => {
+  it("re-inserts images at correct block positions", () => {
+    // Original: heading, image, paragraph → image at blockIndex 1
     const images = [
-      { lineIndex: 2, image: "![photo](https://example.com/img.png)" },
+      { blockIndex: 1, image: "![photo](https://example.com/img.png)" },
     ];
+    // Translation has 2 blocks: heading + paragraph
     const translated = "# 标题\n\n一些文字。";
     const result = restoreImages(translated, images);
 
     expect(result).toContain("![photo](https://example.com/img.png)");
-    const lines = result.split("\n");
-    expect(lines[2]).toBe("![photo](https://example.com/img.png)");
+    // Image should be between heading and paragraph
+    const blocks = result.split("\n\n");
+    expect(blocks[0]).toBe("# 标题");
+    expect(blocks[1]).toBe("![photo](https://example.com/img.png)");
+    expect(blocks[2]).toBe("一些文字。");
   });
 
-  it("clamps positions when translated text is shorter", () => {
+  it("clamps positions when translated text has fewer blocks", () => {
     const images = [
-      { lineIndex: 100, image: "![img](url)" },
+      { blockIndex: 100, image: "![img](url)" },
     ];
-    const translated = "Short\ntext";
+    const translated = "Short text";
     const result = restoreImages(translated, images);
 
     expect(result).toContain("![img](url)");
@@ -176,18 +181,31 @@ describe("restoreImages", () => {
 
   it("handles multiple images in correct order", () => {
     const images = [
-      { lineIndex: 1, image: "![a](1.png)" },
-      { lineIndex: 3, image: "![b](2.png)" },
+      { blockIndex: 1, image: "![a](1.png)" },
+      { blockIndex: 3, image: "![b](2.png)" },
     ];
-    const translated = "Line 0\nLine 1\nLine 2\nLine 3";
+    const translated = "Block 0\n\nBlock 1\n\nBlock 2\n\nBlock 3";
     const result = restoreImages(translated, images);
 
-    const lines = result.split("\n");
-    expect(lines).toContain("![a](1.png)");
-    expect(lines).toContain("![b](2.png)");
-    expect(lines.indexOf("![a](1.png)")).toBeLessThan(
-      lines.indexOf("![b](2.png)")
+    expect(result).toContain("![a](1.png)");
+    expect(result).toContain("![b](2.png)");
+    expect(result.indexOf("![a](1.png)")).toBeLessThan(
+      result.indexOf("![b](2.png)")
     );
+  });
+
+  it("preserves image position relative to paragraphs regardless of line count", () => {
+    // Simulates: EN paragraph is 1 line, ZH paragraph is 3 lines
+    // Image should still appear after the paragraph, not in the middle
+    const images = [
+      { blockIndex: 2, image: "![fig](fig.png)" },
+    ];
+    const translated = "# 标题\n\n这是一个很长的段落，\n翻译后可能有多行，\n但仍然是一个段落。\n\n更多内容。";
+    const result = restoreImages(translated, images);
+
+    const blocks = result.split("\n\n");
+    expect(blocks[2]).toBe("![fig](fig.png)");
+    expect(blocks[3]).toBe("更多内容。");
   });
 });
 
