@@ -78,13 +78,69 @@ describe("fetchWebpage", () => {
     expect(content.authorHandle).toBe("example.com");
   });
 
-  it("throws on fetch failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response("Not found", { status: 404 })
-    );
+  it("throws on fetch failure when both Jina and direct fail", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("Not found", { status: 404 }))
+      .mockResolvedValueOnce(new Response("Not found", { status: 404 }));
 
     await expect(fetchWebpage("https://example.com/404")).rejects.toThrow(
       "Failed to fetch webpage: 404"
     );
+  });
+
+  it("falls back to direct HTML fetch when Jina returns 403 warning", async () => {
+    const jina403 = `Title: Error
+
+URL Source: https://transformer-circuits.pub/2026/emotions/index.html
+
+Warning: Target URL returned error 403: Forbidden
+Warning: This is a cached snapshot of the original page, consider retry with caching opt-out.
+
+Markdown Content:`;
+
+    const directHtml = `<html>
+<head><title>Emotion Concepts in LLMs</title></head>
+<body>
+  <h2>Introduction</h2>
+  <p>This paper explores emotion representations.</p>
+</body>
+</html>`;
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(jina403, { status: 200 }))
+      .mockResolvedValueOnce(new Response(directHtml, { status: 200 }));
+
+    const { content, markdown } = await fetchWebpage(
+      "https://transformer-circuits.pub/2026/emotions/index.html"
+    );
+
+    expect(content.title).toBe("Emotion Concepts in LLMs");
+    expect(content.source).toBe("webpage");
+    expect(markdown).toContain("## Introduction");
+    expect(markdown).toContain("emotion representations");
+  });
+
+  it("falls back to direct HTML fetch when Jina returns empty content", async () => {
+    const jinaEmpty = `Title: Some Page
+
+URL Source: https://example.com/page
+
+Markdown Content:
+`;
+
+    const directHtml = `<html>
+<head><title>Real Content</title></head>
+<body><h1>Hello</h1><p>World</p></body>
+</html>`;
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(jinaEmpty, { status: 200 }))
+      .mockResolvedValueOnce(new Response(directHtml, { status: 200 }));
+
+    const { content, markdown } = await fetchWebpage("https://example.com/page");
+
+    expect(content.title).toBe("Real Content");
+    expect(markdown).toContain("# Hello");
+    expect(markdown).toContain("World");
   });
 });
