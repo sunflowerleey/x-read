@@ -85,10 +85,11 @@ export function useContentFetcher() {
                   throw new Error(parsed.error);
                 }
                 if (parsed.fullText) {
-                  // Complete translation with images restored
+                  // Complete translation (parallel path) — replace, don't append
                   accumulated = parsed.fullText;
                   setTranslatedMarkdown(accumulated);
                 } else if (parsed.text) {
+                  // Streaming chunk — append
                   accumulated += parsed.text;
                   setTranslatedMarkdown(accumulated);
                 }
