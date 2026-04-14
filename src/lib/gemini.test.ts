@@ -177,13 +177,28 @@ describe("splitIntoChunks", () => {
   });
 
   it("keeps large sections as separate chunks", () => {
-    // Each section is larger than MIN_CHUNK_SIZE (10KB) so should stay split
-    const big1 = "## Section One\n\n" + "A".repeat(11_000);
-    const big2 = "## Section Two\n\n" + "B".repeat(11_000);
+    // Each section is larger than MIN_CHUNK_SIZE so should stay split
+    const big1 = "## Section One\n\n" + "A".repeat(9_000);
+    const big2 = "## Section Two\n\n" + "B".repeat(9_000);
     const md = `# Title\n\n${big1}\n\n${big2}`;
 
     const chunks = splitIntoChunks(md, 10);
     expect(chunks.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("falls back to paragraph splitting for oversized sections", () => {
+    // Section exceeds MAX_CHUNK_SIZE (18KB) with no ### subheadings.
+    // Real case: appendices with raw examples.
+    const hugePara = "Para content here. ".repeat(500); // ~9.5KB each
+    const md = `## Big Section\n\n${hugePara}\n\n${hugePara}\n\n${hugePara}`;
+    const chunks = splitIntoChunks(md, 10);
+    // No chunk should exceed MAX_CHUNK_SIZE
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(20_000);
+    }
+    // All content preserved
+    const joined = chunks.join("\n\n");
+    expect(joined).toContain("Big Section");
   });
 
   it("further splits oversized chunks by h3 headings", () => {
