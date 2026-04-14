@@ -139,12 +139,17 @@ function splitByHeadingLevel(markdown: string, prefix: string): string[] {
  *
  * Uses a lower thinking budget than the single-shot path: each chunk is
  * smaller and more self-contained, so deep thinking per chunk is wasteful.
+ *
+ * maxOutputTokens is critical: Gemini's default (8192) truncates long
+ * translations silently. A 30KB English chunk needs ~15K output tokens
+ * in Chinese. We set a generous limit to avoid mid-translation cutoff.
  */
 export async function translateChunk(markdown: string): Promise<string> {
   const response = await getAI().models.generateContent({
     model: "gemini-2.5-flash",
     config: {
       thinkingConfig: { thinkingBudget: 2048 },
+      maxOutputTokens: 32_000,
     },
     contents: [
       {
@@ -168,6 +173,7 @@ export async function* streamTranslateToChineseMarkdown(
     model: "gemini-2.5-flash",
     config: {
       thinkingConfig: { thinkingBudget: 8192 },
+      maxOutputTokens: 32_000,
     },
     contents: [
       {

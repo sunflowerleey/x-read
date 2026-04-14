@@ -89,6 +89,23 @@ export function checkTranslationInvariants(
     );
   }
 
+  // Char-ratio check: catches silent truncation.
+  // Chinese is more compact than English (typically 50-70% the char count).
+  // <40% means translation was cut off mid-stream.
+  // >150% means translation wildly expanded (also suspicious).
+  if (before.chars > 1000) {
+    const ratio = after.chars / before.chars;
+    if (ratio < 0.4) {
+      violations.push(
+        `output_truncated: before=${before.chars} after=${after.chars} ratio=${ratio.toFixed(2)}`
+      );
+    } else if (ratio > 1.5) {
+      violations.push(
+        `output_bloated: before=${before.chars} after=${after.chars} ratio=${ratio.toFixed(2)}`
+      );
+    }
+  }
+
   return { before, after, violations };
 }
 

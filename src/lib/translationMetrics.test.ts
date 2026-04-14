@@ -114,6 +114,38 @@ describe("checkTranslationInvariants", () => {
     expect(result.violations.some((v) => v.includes("image_count_mismatch"))).toBe(true);
     expect(result.violations.some((v) => v.includes("heading_drift"))).toBe(true);
   });
+
+  it("flags output_truncated when translation is cut off mid-stream", () => {
+    // Real observed pattern: 260KB EN → 94KB ZH (36% ratio, way too low)
+    // Gemini hit maxOutputTokens limit silently
+    const before = { headings: 97, images: 27, blocks: 1358, chars: 259_948 };
+    const after = { headings: 97, images: 35, blocks: 1101, chars: 94_195 };
+    const result = checkTranslationInvariants(before, after);
+    expect(result.violations.some((v) => v.includes("output_truncated"))).toBe(true);
+    expect(result.violations.some((v) => v.includes("image_count_mismatch"))).toBe(true);
+  });
+
+  it("accepts normal Chinese output ratio (50-70% of English)", () => {
+    const before = { headings: 10, images: 3, blocks: 50, chars: 10_000 };
+    const after = { headings: 10, images: 3, blocks: 50, chars: 6_000 }; // 60%
+    const result = checkTranslationInvariants(before, after);
+    expect(result.violations.filter((v) => v.includes("output_"))).toEqual([]);
+  });
+
+  it("flags output_bloated when translation is suspiciously long", () => {
+    const before = { headings: 5, images: 1, blocks: 20, chars: 10_000 };
+    const after = { headings: 5, images: 1, blocks: 20, chars: 20_000 }; // 200%
+    const result = checkTranslationInvariants(before, after);
+    expect(result.violations.some((v) => v.includes("output_bloated"))).toBe(true);
+  });
+
+  it("skips char ratio check for very short content (<1000 chars)", () => {
+    // Short content has too much variance in char ratios to check reliably
+    const before = { headings: 1, images: 0, blocks: 2, chars: 500 };
+    const after = { headings: 1, images: 0, blocks: 2, chars: 150 }; // 30%
+    const result = checkTranslationInvariants(before, after);
+    expect(result.violations.filter((v) => v.includes("output_"))).toEqual([]);
+  });
 });
 
 describe("logMetrics", () => {
