@@ -1,6 +1,7 @@
 import { ContentData } from "./types";
 import { fixBrokenTables } from "./cleanJinaMarkdown";
 import { htmlToMarkdown } from "./htmlToMarkdown";
+import { extractArticleAsMarkdown } from "./readabilityToMarkdown";
 
 /**
  * Fetch any webpage content via Jina Reader and return ContentData + markdown.
@@ -114,7 +115,26 @@ async function fetchDirectHtml(url: string): Promise<{
   }
 
   const html = await res.text();
-  const { title: extractedTitle, markdown } = htmlToMarkdown(html, url);
+
+  // Primary: Mozilla Readability + node-html-markdown (proper HTML parser
+  // + article extraction). Handles complex layouts, strips boilerplate.
+  // Falls back to regex extractor if Readability can't identify an article
+  // (unusual page structures, index pages, JS-heavy pages).
+  let extractedTitle: string | undefined;
+  let markdown = "";
+
+  const readable = extractArticleAsMarkdown(html, url);
+  if (readable) {
+    extractedTitle = readable.title;
+    markdown = readable.markdown;
+  } else {
+    console.warn(
+      "[webpage] Readability could not extract article, falling back to regex htmlToMarkdown"
+    );
+    const regex = htmlToMarkdown(html, url);
+    extractedTitle = regex.title;
+    markdown = regex.markdown;
+  }
 
   if (!markdown) {
     throw new Error(
