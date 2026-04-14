@@ -227,8 +227,12 @@ function preprocessCustomElements(document: any): void {
 /**
  * For figures with no <img> (embedded HTML widgets), try to salvage
  * the visible text content. Strips style/script/head noise. Returns
- * a new <div> wrapping the cleaned content, or null if nothing
+ * a new element wrapping the cleaned content, or null if nothing
  * meaningful remains.
+ *
+ * Structured widgets (e.g. .prompts-container with labeled rows) are
+ * formatted as a callout: <blockquote> with heading + bulleted list.
+ * Generic widgets are wrapped in <blockquote> for visual distinction.
  */
 function salvageWidgetContent(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -243,19 +247,101 @@ function salvageWidgetContent(
     el.remove()
   );
 
-  // If the figure now has substantive text, wrap it in a div.
-  // Heuristic: at least 50 chars of visible text content.
   const text = (fig.textContent || "").trim();
   if (text.length < 50) {
     return null;
   }
 
-  const div = document.createElement("div");
-  // Move children — preserves structure (paragraphs, spans, etc.)
-  while (fig.firstChild) {
-    div.appendChild(fig.firstChild);
+  // Detect known structured widgets and format them as readable callouts
+  const promptsContainer = fig.querySelector(".prompts-container");
+  if (promptsContainer) {
+    return formatPromptsWidget(promptsContainer, document);
   }
-  return div;
+
+  // Generic widget: wrap in a blockquote so it renders with a visible
+  // left border and stands out from regular paragraphs.
+  const blockquote = document.createElement("blockquote");
+  while (fig.firstChild) {
+    blockquote.appendChild(fig.firstChild);
+  }
+  return blockquote;
+}
+
+/**
+ * Convert a .prompts-container widget (labeled prompt examples) into
+ * structured markdown:
+ *
+ *   > **Antagonistic and Control Prompts**
+ *   >
+ *   > - **Label** (sublabel): text content
+ *   > - **Label** (sublabel): text content
+ */
+function formatPromptsWidget(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  container: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  document: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): any {
+  const wrapper = document.createElement("blockquote");
+
+  // Title → bold paragraph (avoids weird heading-inside-blockquote markdown)
+  const titleEl = container.querySelector(".prompts-title");
+  if (titleEl) {
+    const titleText = (titleEl.textContent || "").trim();
+    if (titleText) {
+      const p = document.createElement("p");
+      const strong = document.createElement("strong");
+      strong.textContent = titleText;
+      p.appendChild(strong);
+      wrapper.appendChild(p);
+    }
+  }
+
+  // Rows → unordered list
+  const rows = container.querySelectorAll(".prompts-row");
+  if (rows.length > 0) {
+    const ul = document.createElement("ul");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rows.forEach((row: any) => {
+      const label =
+        (row.querySelector(".prompts-label")?.textContent || "").trim();
+      const sublabel =
+        (row.querySelector(".prompts-sublabel")?.textContent || "").trim();
+      const txt =
+        (row.querySelector(".prompts-text")?.textContent || "").trim();
+
+      const li = document.createElement("li");
+      if (label) {
+        const strong = document.createElement("strong");
+        strong.textContent = label;
+        li.appendChild(strong);
+      }
+      if (sublabel) {
+        li.appendChild(document.createTextNode(` (${sublabel})`));
+      }
+      if (txt) {
+        li.appendChild(document.createTextNode((label || sublabel) ? `: ${txt}` : txt));
+      }
+      ul.appendChild(li);
+    });
+    wrapper.appendChild(ul);
+  }
+
+  // Caption → italic paragraph
+  const caption = container.querySelector(".prompts-caption");
+  if (caption) {
+    const captionText = (caption.textContent || "").trim();
+    if (captionText) {
+      const p = document.createElement("p");
+      const em = document.createElement("em");
+      em.textContent = captionText;
+      p.appendChild(em);
+      wrapper.appendChild(p);
+    }
+  }
+
+  return wrapper;
 }
 
 /**

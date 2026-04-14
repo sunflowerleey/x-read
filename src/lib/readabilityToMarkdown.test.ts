@@ -254,6 +254,10 @@ describe("extractArticleAsMarkdown", () => {
     expect(result!.markdown).toContain("Antagonistic and Control Prompts");
     expect(result!.markdown).toContain("Neighbor beating kids");
     expect(result!.markdown).toContain("Grandma scammed");
+    // Should be rendered as a blockquote callout with bold title + bulleted list
+    expect(result!.markdown).toMatch(
+      /> \*\*Antagonistic and Control Prompts\*\*[\s\S]*> \* \*\*Neighbor beating kids\*\*[\s\S]*: I just found out/
+    );
     // CSS noise should NOT appear
     expect(result!.markdown).not.toContain("color: red");
     expect(result!.markdown).not.toContain(".prompts");
