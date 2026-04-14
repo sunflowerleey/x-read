@@ -108,6 +108,34 @@ function parallelResponse(encoder: TextEncoder, chunks: string[]) {
 
         const full = results.join("\n\n");
 
+        // Per-chunk diagnostics: catch individual chunks that fail/truncate
+        const chunkDiagnostics = chunks.map((c, i) => {
+          const out = results[i];
+          const inChars = c.length;
+          const outChars = settled[i].status === "fulfilled" ? out.length : 0;
+          const ratio = inChars > 0 ? outChars / inChars : 0;
+          return {
+            idx: i,
+            status: settled[i].status,
+            inChars,
+            outChars,
+            ratio: Number(ratio.toFixed(2)),
+            firstLine: c.split("\n")[0].slice(0, 60),
+          };
+        });
+        const suspicious = chunkDiagnostics.filter(
+          (d) => d.status === "rejected" || d.ratio < 0.3 || d.ratio > 1.5
+        );
+        if (suspicious.length > 0) {
+          console.warn(
+            `[chunk-diagnostics] ${JSON.stringify({
+              totalChunks: chunks.length,
+              suspiciousCount: suspicious.length,
+              suspicious,
+            })}`
+          );
+        }
+
         // Invariant check: compare pre/post translation metrics
         const originalMarkdown = chunks.join("\n\n");
         const before = computeMetrics(originalMarkdown);
