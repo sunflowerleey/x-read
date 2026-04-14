@@ -3,6 +3,7 @@ import {
   streamTranslateToChineseMarkdown,
   translateChunk,
   splitIntoChunks,
+  removeHallucinatedImages,
 } from "@/lib/gemini";
 import {
   computeMetrics,
@@ -106,7 +107,13 @@ function parallelResponse(encoder: TextEncoder, chunks: string[]) {
             : `[翻译失败: ${chunks[i].slice(0, 50)}...]`
         );
 
-        const full = results.join("\n\n");
+        const rawFull = results.join("\n\n");
+        const originalMarkdown = chunks.join("\n\n");
+
+        // Strip hallucinated images whose URLs don't exist in the original.
+        // Gemini sometimes fabricates `![](image.png)` placeholders that
+        // render as broken images in the UI.
+        const full = removeHallucinatedImages(rawFull, originalMarkdown);
 
         // Per-chunk diagnostics: catch individual chunks that fail/truncate
         const chunkDiagnostics = chunks.map((c, i) => {
@@ -137,7 +144,6 @@ function parallelResponse(encoder: TextEncoder, chunks: string[]) {
         }
 
         // Invariant check: compare pre/post translation metrics
-        const originalMarkdown = chunks.join("\n\n");
         const before = computeMetrics(originalMarkdown);
         const after = computeMetrics(full);
         logMetrics("parallel", checkTranslationInvariants(before, after));
