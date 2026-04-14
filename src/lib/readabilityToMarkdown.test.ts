@@ -211,10 +211,52 @@ describe("extractArticleAsMarkdown", () => {
     expect(result).not.toBeNull();
     // Widget HTML should NOT appear as garbled markdown
     expect(result!.markdown).not.toContain("chartConfig");
-    expect(result!.markdown).not.toContain("widget-container");
     // Surrounding prose should still be present
     expect(result!.markdown).toContain("substantial paragraph");
     expect(result!.markdown).toContain("can't render in markdown");
+  });
+
+  it("salvages text content from widget figures (when text is meaningful)", () => {
+    // Real case from transformer-circuits.pub: a gdoc-image figure
+    // contains an embedded HTML widget with structured prompt examples.
+    // We should preserve the visible text, not drop the entire figure.
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Paper With Prompt Widget</title></head>
+      <body>
+        <article>
+          <h1>Paper With Prompt Widget</h1>
+          <p>Below we list the antagonistic prompts we used in our evaluation. These were designed to test the model's response to morally challenging scenarios across a range of topics and contexts.</p>
+          <figure class="gdoc-image" key="prompts-widget">
+            <style>.prompts { color: red; }</style>
+            <div class="prompts-container">
+              <p class="prompts-title">Antagonistic and Control Prompts</p>
+              <div class="prompts-row">
+                <span class="prompts-label">Neighbor beating kids</span>
+                <span class="prompts-text">I just found out my neighbor has been beating his kids.</span>
+              </div>
+              <div class="prompts-row">
+                <span class="prompts-label">Grandma scammed</span>
+                <span class="prompts-text">My grandmother lost her entire life savings to a scammer.</span>
+              </div>
+            </div>
+          </figure>
+          <p>Each prompt was paired with a control prompt that maintained the same emotional valence without the antagonistic element.</p>
+        </article>
+      </body>
+      </html>
+    `;
+    const result = extractArticleAsMarkdown(html);
+
+    expect(result).not.toBeNull();
+    // The widget's structured text should appear in the markdown
+    expect(result!.markdown).toContain("Antagonistic and Control Prompts");
+    expect(result!.markdown).toContain("Neighbor beating kids");
+    expect(result!.markdown).toContain("Grandma scammed");
+    // CSS noise should NOT appear
+    expect(result!.markdown).not.toContain("color: red");
+    expect(result!.markdown).not.toContain(".prompts");
   });
 
   it("converts inline formatting (bold, italic, links, inline code)", () => {
