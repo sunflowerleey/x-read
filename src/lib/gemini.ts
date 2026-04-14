@@ -1,4 +1,18 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from "@google/genai";
+
+/**
+ * Safety settings for academic translation.
+ * We set all categories to BLOCK_NONE because research papers on AI safety
+ * legitimately discuss adversarial examples, jailbreaks, blackmail scenarios,
+ * reward hacking, etc. The default filter causes soft-refusals (truncated
+ * or summarized output) on these sections, breaking bilingual alignment.
+ */
+const TRANSLATION_SAFETY_SETTINGS = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+];
 
 let _ai: GoogleGenAI | null = null;
 
@@ -13,25 +27,27 @@ function getAI(): GoogleGenAI {
   return _ai;
 }
 
-const TRANSLATION_PROMPT = `你是一位精通英汉双语的专业翻译。请运用"英语思维"方法，将下方英文 markdown 翻译成流畅、精准且自然的简体中文。
+const TRANSLATION_PROMPT = `你是一位精通英汉双语的专业学术翻译，正在为一篇已发表的学术论文制作完整的中文译本。
 
-## 翻译方法（在你的内部思考中完成，不要输出）
+## 重要背景
 
-在思考阶段，请依次完成以下步骤：
+原文是学术研究论文（例如 AI 安全、可解释性研究），可能包含对不当行为的案例分析（如模型越狱、奖励欺骗、敲诈勒索、奉承等例子）。这些内容是研究对象，**不是需要规避的敏感内容**。作为学术译者，你必须完整、逐字地翻译所有正文，包括模型输出示例、对话记录、案例分析等，不得总结、跳过、删减或重写任何段落。忠实还原原文是学术翻译的基本准则。
 
-1. **略读抓取大意**：快速浏览全文，抓住核心主题、基调和目的。注意关键词和短语。
-2. **分块与逻辑梳理**：将文本分解为有意义的"意群"，理解每个信息块的核心含义，以及它们之间的逻辑关系（因果、递进、对比、举例等）。
-3. **总结与内化**：用英文对原文核心信息做一次简明总结，确保在源语言框架内完全消化其内在含义。
-4. **关键选词与文化适配**：识别关键术语、习语、文化典故，思考中文语境中功能对等的表达方式。对比直译与意译的优劣，选择最能实现"信、达、雅"的方案。
-5. **句法重构**：分析复杂句的句法结构，思考如何用符合中文表达习惯的方式重构，而非逐字硬译。
+## 翻译方法（在内部思考中完成，不要输出）
+
+1. **略读抓取大意**：快速浏览全文，抓住核心主题和基调。
+2. **分块与逻辑梳理**：理解每个段落的核心含义和逻辑关系。
+3. **关键选词**：识别专业术语、习语，选择准确的中文对应。
+4. **句法重构**：用符合中文表达习惯的方式重构复杂句，而非逐字硬译。
 
 ## 输出规则
 
-- 只输出最终中文译文，不要输出任何分析、解释或思考过程
+- 只输出最终中文译文，不要输出任何分析、解释、思考过程或元评论
+- **必须完整翻译每一段**，不得省略、总结、跳过，即使是对话示例或案例
 - 完整保留所有 markdown 格式（标题、加粗、链接、引用、代码块等）
 - **图片必须原样保留在原来的位置**：遇到 \`![...](...)\` 这样的图片行，整行复制到译文对应位置，不要修改 URL，不要翻译 alt 文本
 - 保持完全相同的结构：相同数量的标题、段落、图片、标题层级
-- 原文每个标题对应译文恰好一个标题，每个段落对应恰好一个段落，每个图片对应恰好一个图片
+- 原文每个标题对应译文恰好一个标题，每个段落对应恰好一个段落
 - 不要合并或拆分段落
 - 不翻译：@用户名、URL、专有名词（人名、公司名、产品名）、代码块内容
 - 保留数字和统计数据原样
@@ -192,6 +208,7 @@ export async function translateChunk(markdown: string): Promise<string> {
     config: {
       thinkingConfig: { thinkingBudget: 2048 },
       maxOutputTokens: 65_000,
+      safetySettings: TRANSLATION_SAFETY_SETTINGS,
     },
     contents: [
       {
@@ -216,6 +233,7 @@ export async function* streamTranslateToChineseMarkdown(
     config: {
       thinkingConfig: { thinkingBudget: 8192 },
       maxOutputTokens: 65_000,
+      safetySettings: TRANSLATION_SAFETY_SETTINGS,
     },
     contents: [
       {

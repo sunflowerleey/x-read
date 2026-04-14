@@ -11,6 +11,15 @@ vi.mock("@google/genai", () => ({
       generateContent: mockGenerateContent,
     };
   },
+  HarmCategory: {
+    HARM_CATEGORY_HARASSMENT: "HARM_CATEGORY_HARASSMENT",
+    HARM_CATEGORY_HATE_SPEECH: "HARM_CATEGORY_HATE_SPEECH",
+    HARM_CATEGORY_SEXUALLY_EXPLICIT: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+    HARM_CATEGORY_DANGEROUS_CONTENT: "HARM_CATEGORY_DANGEROUS_CONTENT",
+  },
+  HarmBlockThreshold: {
+    BLOCK_NONE: "BLOCK_NONE",
+  },
 }));
 
 // Must import after mock is set up
@@ -88,7 +97,7 @@ describe("streamTranslateToChineseMarkdown", () => {
     const callArgs = mockGenerateContentStream.mock.calls[0][0];
     const promptText = callArgs.contents[0].parts[0].text;
     expect(promptText).toContain("## Special Content");
-    expect(promptText).toContain("英语思维");
+    expect(promptText).toContain("学术翻译");
   });
 });
 
@@ -124,6 +133,45 @@ describe("translateChunk", () => {
     const promptText = callArgs.contents[0].parts[0].text;
     // Images should be passed through so Gemini preserves them in-place
     expect(promptText).toContain("![figure](https://example.com/fig.png)");
+  });
+
+  it("sends safety settings set to BLOCK_NONE for academic content", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    mockGenerateContent.mockResolvedValueOnce({ text: "翻译" });
+
+    await translateChunk("test content");
+
+    const callArgs = mockGenerateContent.mock.calls[0][0];
+    const safety = callArgs.config.safetySettings;
+    expect(Array.isArray(safety)).toBe(true);
+    expect(safety.length).toBeGreaterThanOrEqual(4);
+    // All categories should be BLOCK_NONE so Gemini doesn't soft-refuse
+    // on AI safety research content (blackmail scenarios, jailbreaks, etc.)
+    for (const s of safety) {
+      expect(s.threshold).toBe("BLOCK_NONE");
+    }
+  });
+});
+
+describe("TRANSLATION_PROMPT academic framing", () => {
+  it("includes academic context to prevent safety soft-refusals", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    mockGenerateContentStream.mockResolvedValueOnce(
+      (async function* () {
+        yield { text: "ok" };
+      })()
+    );
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const chunk of streamTranslateToChineseMarkdown("test")) {
+      // drain
+    }
+
+    const promptText =
+      mockGenerateContentStream.mock.calls[0][0].contents[0].parts[0].text;
+    // Must frame content as academic to prevent summarization of examples
+    expect(promptText).toMatch(/学术|academic/i);
+    expect(promptText).toMatch(/必须完整|must.*complete|不得.*省略|不得.*总结/);
   });
 });
 
