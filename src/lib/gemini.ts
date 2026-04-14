@@ -149,7 +149,7 @@ export async function translateChunk(markdown: string): Promise<string> {
     model: "gemini-2.5-flash",
     config: {
       thinkingConfig: { thinkingBudget: 2048 },
-      maxOutputTokens: 32_000,
+      maxOutputTokens: 65_000,
     },
     contents: [
       {
@@ -173,7 +173,7 @@ export async function* streamTranslateToChineseMarkdown(
     model: "gemini-2.5-flash",
     config: {
       thinkingConfig: { thinkingBudget: 8192 },
-      maxOutputTokens: 32_000,
+      maxOutputTokens: 65_000,
     },
     contents: [
       {

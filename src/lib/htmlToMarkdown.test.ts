@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractBlocks, blocksToMarkdown, extractTitle, htmlToMarkdown, stripNonContent } from "./htmlToMarkdown";
+import { extractBlocks, blocksToMarkdown, extractTitle, htmlToMarkdown, stripNonContent, isSimilarText } from "./htmlToMarkdown";
 
 describe("extractBlocks", () => {
   it("extracts headings with correct levels", () => {
@@ -233,5 +233,63 @@ describe("htmlToMarkdown", () => {
     `;
     const result = htmlToMarkdown(html, "https://example.com/2026/paper/index.html");
     expect(result.markdown).toContain("![Hero figure](https://example.com/2026/paper/hero.png)");
+  });
+});
+
+describe("isSimilarText", () => {
+  it("returns true for identical strings", () => {
+    expect(isSimilarText("Hello World", "Hello World")).toBe(true);
+  });
+
+  it("ignores case differences", () => {
+    expect(isSimilarText("Hello World", "hello world")).toBe(true);
+  });
+
+  it("treats missing spaces as similar (HTML tag boundary artifact)", () => {
+    // Real case from transformer-circuits.pub: <h1> contains nested spans,
+    // stripTags produces "Functionin" (no space) while <title> has "Function in"
+    expect(
+      isSimilarText(
+        "Emotion Concepts and their Function in a Large Language Model",
+        "Emotion Concepts and their Functionin a Large Language Model"
+      )
+    ).toBe(true);
+  });
+
+  it("treats extra whitespace as similar", () => {
+    expect(isSimilarText("Hello  World", "Hello World")).toBe(true);
+  });
+
+  it("substring with >80% overlap is similar", () => {
+    // 21/25 = 84%, above the 80% threshold
+    expect(isSimilarText("This is a longer title okay", "This is a longer title")).toBe(true);
+  });
+
+  it("returns false for distinctly different strings", () => {
+    expect(isSimilarText("Introduction", "Methodology")).toBe(false);
+  });
+
+  it("returns false for same-length but different content", () => {
+    expect(isSimilarText("Authors", "Summary")).toBe(false);
+  });
+});
+
+describe("deduplicates near-identical consecutive headings (regression)", () => {
+  it("removes duplicate h1 even with missing-space typo", () => {
+    // Real transformer-circuits.pub pattern
+    const html = `
+      <html>
+      <head><title>Emotion Concepts and their Function in a Large Language Model</title></head>
+      <body>
+        <h1>Emotion Concepts and their Function in a Large Language Model</h1>
+        <h1>Emotion Concepts and their Functionin a Large Language Model</h1>
+        <p>Content follows.</p>
+      </body>
+      </html>
+    `;
+    const result = htmlToMarkdown(html);
+    // Only ONE h1 should remain in the output
+    const h1Count = (result.markdown.match(/^# /gm) || []).length;
+    expect(h1Count).toBe(1);
   });
 });
