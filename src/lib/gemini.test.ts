@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { splitIntoChunks } from "./gemini";
+import { splitIntoChunks, removeHallucinatedImages } from "./gemini";
 
 const mockGenerateContentStream = vi.fn();
 const mockGenerateContent = vi.fn();
@@ -97,7 +97,7 @@ describe("streamTranslateToChineseMarkdown", () => {
     const callArgs = mockGenerateContentStream.mock.calls[0][0];
     const promptText = callArgs.contents[0].parts[0].text;
     expect(promptText).toContain("## Special Content");
-    expect(promptText).toContain("学术翻译");
+    expect(promptText).toContain("严格逐字翻译");
   });
 });
 
@@ -253,7 +253,8 @@ describe("TRANSLATION_PROMPT academic framing", () => {
       mockGenerateContentStream.mock.calls[0][0].contents[0].parts[0].text;
     // Must frame content as academic to prevent summarization of examples
     expect(promptText).toMatch(/学术|academic/i);
-    expect(promptText).toMatch(/必须完整|must.*complete|不得.*省略|不得.*总结/);
+    // Must contain strict anti-summarization language
+    expect(promptText).toMatch(/严禁总结|必须完整|不得.*省略/);
   });
 });
 
@@ -347,5 +348,50 @@ describe("splitIntoChunks", () => {
     const chunks = splitIntoChunks(md, 10);
     // Under MAX_CHUNK_SIZE, no further splitting
     expect(chunks).toHaveLength(1);
+  });
+});
+
+describe("removeHallucinatedImages", () => {
+  it("keeps images whose URLs appear in the original", () => {
+    const original = "See ![fig](https://example.com/real.png)";
+    const translated = "见 ![图](https://example.com/real.png)";
+    const result = removeHallucinatedImages(translated, original);
+    expect(result).toContain("https://example.com/real.png");
+  });
+
+  it("removes standalone image lines with fabricated URLs", () => {
+    const original = "See ![fig](https://example.com/real.png)";
+    const translated =
+      "见 ![图](https://example.com/real.png)\n\n![](image.png)\n\n![](fake.jpg)";
+    const result = removeHallucinatedImages(translated, original);
+    expect(result).toContain("https://example.com/real.png");
+    expect(result).not.toContain("image.png");
+    expect(result).not.toContain("fake.jpg");
+  });
+
+  it("removes ALL standalone images when original has none", () => {
+    const original = "Plain text, no images here.";
+    const translated = "普通文本\n\n![](invented.png)\n\n![](image.png)";
+    const result = removeHallucinatedImages(translated, original);
+    expect(result).not.toContain("invented.png");
+    expect(result).not.toContain("image.png");
+    expect(result).toContain("普通文本");
+  });
+
+  it("preserves inline image references (not their own line)", () => {
+    const original = "See ![fig](https://example.com/real.png)";
+    const translated = "请参见 ![图](https://example.com/real.png) 上面所示";
+    const result = removeHallucinatedImages(translated, original);
+    // Inline image should be preserved
+    expect(result).toBe(translated);
+  });
+
+  it("collapses triple newlines left by removed images", () => {
+    const original = "No images.";
+    const translated = "段落一\n\n![](fake.png)\n\n段落二";
+    const result = removeHallucinatedImages(translated, original);
+    expect(result).not.toMatch(/\n\n\n/);
+    expect(result).toContain("段落一");
+    expect(result).toContain("段落二");
   });
 });
