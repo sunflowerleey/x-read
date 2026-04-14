@@ -220,7 +220,7 @@ export function removeHallucinatedImages(
 
 async function callGemini(markdown: string, prompt: string) {
   const response = await getAI().models.generateContent({
-    model: "gemini-2.5-flash",
+    model: "gemini-3-flash-preview",
     config: {
       thinkingConfig: { thinkingBudget: 2048 },
       maxOutputTokens: 65_000,
@@ -321,7 +321,7 @@ export async function* streamTranslateToChineseMarkdown(
   markdown: string
 ): AsyncGenerator<string> {
   const response = await getAI().models.generateContentStream({
-    model: "gemini-2.5-flash",
+    model: "gemini-3-flash-preview",
     config: {
       thinkingConfig: { thinkingBudget: 8192 },
       maxOutputTokens: 65_000,
