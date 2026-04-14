@@ -16,12 +16,12 @@
 | `lib/translationMetrics.ts` | 128 | **B** | 22 | Yes |
 | `lib/twitter.ts` | 108 | **B** | 12 | Yes |
 | `lib/types.ts` | 32 | **B** | 0 | No |
-| `lib/webpage.ts` | 135 | **B** | 7 | Yes |
+| `lib/webpage.ts` | 153 | **B** | 8 | Yes |
 
 ## Summary
 - **Total lib files:** 11
 - **Files with tests:** 10 / 11
-- **Total test cases:** 145
-- **Total lib lines:** 1589
+- **Total test cases:** 146
+- **Total lib lines:** 1607
 
 *Last updated: 2026-04-14*

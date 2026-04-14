@@ -21,25 +21,43 @@ export async function fetchWebpage(url: string): Promise<{
   return fetchDirectHtml(url);
 }
 
-/** Attempt to fetch via Jina Reader. Returns null if Jina reports a target-site error. */
+/**
+ * Attempt to fetch via Jina Reader.
+ * Returns null for any failure (network error, target-site error, empty
+ * content) so the caller can fall back to direct HTTP fetch.
+ */
 async function tryJinaReader(url: string): Promise<{
   content: ContentData;
   markdown: string;
 } | null> {
   const jinaUrl = `https://r.jina.ai/${url}`;
-  const res = await fetch(jinaUrl, {
-    headers: {
-      Accept: "text/markdown",
-      "User-Agent": "X-Read/1.0",
-    },
-    signal: AbortSignal.timeout(30_000),
-  });
+  let res: Response;
+  try {
+    res = await fetch(jinaUrl, {
+      headers: {
+        Accept: "text/markdown",
+        "User-Agent": "X-Read/1.0",
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (e) {
+    // Network-level failure (ECONNRESET, timeout, DNS) — fall back to direct fetch
+    console.warn(
+      `[webpage] Jina fetch failed (${e instanceof Error ? e.message : "unknown"}), falling back to direct HTTP`
+    );
+    return null;
+  }
 
   if (!res.ok) {
     return null;
   }
 
-  const text = await res.text();
+  let text: string;
+  try {
+    text = await res.text();
+  } catch {
+    return null;
+  }
 
   // Detect Jina's embedded target-site errors (e.g. "Warning: Target URL returned error 403")
   if (/Warning:.*Target URL returned error/i.test(text)) {
