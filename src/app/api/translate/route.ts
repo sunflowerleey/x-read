@@ -2,13 +2,8 @@ import { NextRequest } from "next/server";
 import {
   streamTranslateToChineseMarkdown,
   translateChunk,
-  stripImages,
-  restoreImages,
   splitIntoChunks,
-  type ImageAnchor,
 } from "@/lib/gemini";
-
-type ImageEntry = ImageAnchor;
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,21 +26,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Strip images — they don't need translation and waste tokens
-    const { text: textOnly, images } = stripImages(markdown);
-
     // Split into chunks for parallel translation
-    const chunks = splitIntoChunks(textOnly);
+    // Images stay inside the markdown — Gemini preserves them in place,
+    // which is far more reliable than trying to reinsert them after.
+    const chunks = splitIntoChunks(markdown);
 
     const encoder = new TextEncoder();
 
     // Short content: stream directly for better UX (shows characters as they arrive)
     if (chunks.length <= 1) {
-      return streamResponse(encoder, textOnly, images);
+      return streamResponse(encoder, markdown);
     }
 
-    // Long content: translate chunks in parallel, emit in order
-    return parallelResponse(encoder, chunks, images);
+    // Long content: translate chunks in parallel, emit when all done
+    return parallelResponse(encoder, chunks);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Translation failed";
     return new Response(JSON.stringify({ error: message }), {
@@ -62,28 +56,13 @@ const SSE_HEADERS = {
 } as const;
 
 /** Stream a single translation call (for short content). */
-function streamResponse(
-  encoder: TextEncoder,
-  markdown: string,
-  images: ImageEntry[]
-) {
+function streamResponse(encoder: TextEncoder, markdown: string) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const parts: string[] = [];
         for await (const chunk of streamTranslateToChineseMarkdown(markdown)) {
-          parts.push(chunk);
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`)
-          );
-        }
-        // After streaming completes, send the full text with images restored
-        if (images.length > 0) {
-          const full = restoreImages(parts.join(""), images);
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({ fullText: full })}\n\n`
-            )
           );
         }
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -102,11 +81,7 @@ function streamResponse(
 }
 
 /** Translate chunks in parallel (with concurrency limit), emit SSE in order. */
-function parallelResponse(
-  encoder: TextEncoder,
-  chunks: string[],
-  images: ImageEntry[]
-) {
+function parallelResponse(encoder: TextEncoder, chunks: string[]) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
@@ -119,10 +94,11 @@ function parallelResponse(
             : `[翻译失败: ${chunks[i].slice(0, 50)}...]`
         );
 
-        // Emit full result with images restored
-        const full = restoreImages(results.join("\n\n"), images);
+        const full = results.join("\n\n");
+        // Use fullText so client replaces (not appends) — parallel path emits
+        // the complete translation in one shot, not incremental chunks
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ text: full })}\n\n`)
+          encoder.encode(`data: ${JSON.stringify({ fullText: full })}\n\n`)
         );
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
