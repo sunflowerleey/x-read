@@ -192,17 +192,32 @@ function splitByHeadingLevel(markdown: string, prefix: string): string[] {
 }
 
 /**
- * Translate a single chunk of markdown (non-streaming).
- * Used for parallel translation of multiple chunks.
- *
- * Uses a lower thinking budget than the single-shot path: each chunk is
- * smaller and more self-contained, so deep thinking per chunk is wasteful.
- *
- * maxOutputTokens is critical: Gemini's default (8192) truncates long
- * translations silently. A 30KB English chunk needs ~15K output tokens
- * in Chinese. We set a generous limit to avoid mid-translation cutoff.
+ * Stricter retry prompt. Used when the first attempt produces
+ * suspiciously short output (Gemini voluntarily summarized instead of
+ * translating verbatim). finishReason is still STOP, so this isn't
+ * safety/MAX_TOKENS — it's a prompt-following failure.
  */
-export async function translateChunk(markdown: string): Promise<string> {
+const STRICT_TRANSLATION_PROMPT = `严格逐字翻译下方英文 markdown 为简体中文。
+
+硬性要求（违反则视为失败）：
+- 译文长度必须与原文相近（中文通常是英文字符数的 50%-70%）
+- 每个段落、列表项、对话、代码都必须有对应译文，顺序一致
+- 严禁总结、摘要、压缩、跳过任何内容
+- 严禁输出"（以下内容略）"、"（省略）"、"..." 等省略标记
+- 如果原文是对话或邮件示例，也必须完整翻译
+
+格式保留：
+- markdown 标记原样保留（# 标题、**加粗**、\`代码\`、![图片]() 等）
+- URL、人名、公司名、产品名、@用户名、代码内容不翻译
+- 数字、百分比、日期保留原样
+
+只输出译文，不要输出解释或元评论。
+
+## 原文
+
+`;
+
+async function callGemini(markdown: string, prompt: string) {
   const response = await getAI().models.generateContent({
     model: "gemini-2.5-flash",
     config: {
@@ -213,29 +228,53 @@ export async function translateChunk(markdown: string): Promise<string> {
     contents: [
       {
         role: "user",
-        parts: [{ text: TRANSLATION_PROMPT + markdown }],
+        parts: [{ text: prompt + markdown }],
       },
     ],
   });
-
-  // Log the finishReason so we can distinguish normal stops from
-  // truncation (MAX_TOKENS), recitation filter (RECITATION), safety
-  // blocks (SAFETY/PROHIBITED_CONTENT/BLOCKLIST), etc.
-  const candidate = response.candidates?.[0];
-  const finishReason = candidate?.finishReason;
   const text = response.text ?? "";
-  if (finishReason && finishReason !== "STOP") {
+  const finishReason = response.candidates?.[0]?.finishReason;
+  return { text, finishReason };
+}
+
+/**
+ * Translate a single chunk of markdown (non-streaming).
+ * Retries with a stricter prompt if the first attempt summarizes
+ * instead of translating (output too short but finishReason=STOP).
+ *
+ * maxOutputTokens is critical: Gemini's default (8192) truncates long
+ * translations silently. A 30KB English chunk needs ~15K output tokens
+ * in Chinese. We set a generous limit to avoid mid-translation cutoff.
+ */
+export async function translateChunk(markdown: string): Promise<string> {
+  const first = await callGemini(markdown, TRANSLATION_PROMPT);
+
+  if (first.finishReason && first.finishReason !== "STOP") {
     console.warn(
       `[gemini-finish] ${JSON.stringify({
-        finishReason,
+        finishReason: first.finishReason,
         inChars: markdown.length,
-        outChars: text.length,
+        outChars: first.text.length,
         firstLine: markdown.split("\n")[0].slice(0, 60),
       })}`
     );
   }
 
-  return text;
+  // Retry with stricter prompt if the output is suspiciously short
+  // but Gemini reported normal completion (voluntary summarization).
+  const ratio = markdown.length > 0 ? first.text.length / markdown.length : 1;
+  if (ratio < 0.4 && first.finishReason === "STOP" && markdown.length > 2000) {
+    console.warn(
+      `[retry] chunk ratio=${ratio.toFixed(2)}, retrying with strict prompt (firstLine="${markdown.split("\n")[0].slice(0, 60)}")`
+    );
+    const retry = await callGemini(markdown, STRICT_TRANSLATION_PROMPT);
+    // Accept retry only if it's meaningfully longer
+    if (retry.text.length > first.text.length * 1.3) {
+      return retry.text;
+    }
+  }
+
+  return first.text;
 }
 
 /**

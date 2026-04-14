@@ -145,11 +145,93 @@ describe("translateChunk", () => {
     const safety = callArgs.config.safetySettings;
     expect(Array.isArray(safety)).toBe(true);
     expect(safety.length).toBeGreaterThanOrEqual(4);
-    // All categories should be BLOCK_NONE so Gemini doesn't soft-refuse
-    // on AI safety research content (blackmail scenarios, jailbreaks, etc.)
     for (const s of safety) {
       expect(s.threshold).toBe("BLOCK_NONE");
     }
+  });
+
+  it("retries with stricter prompt when output is suspiciously short", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // First call: short output (Gemini summarized). finishReason=STOP.
+    // Second call (retry with strict prompt): longer, proper translation.
+    const longInput = "Hello world. ".repeat(500); // ~6500 chars
+    const shortOutput = "你好。"; // way too short — ratio ~0.001
+    const fullOutput = "你好世界。".repeat(500); // proper length
+
+    mockGenerateContent
+      .mockResolvedValueOnce({
+        text: shortOutput,
+        candidates: [{ finishReason: "STOP" }],
+      })
+      .mockResolvedValueOnce({
+        text: fullOutput,
+        candidates: [{ finishReason: "STOP" }],
+      });
+
+    const result = await translateChunk(longInput);
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+    expect(result).toBe(fullOutput);
+    // The second call should use the stricter prompt
+    const retryPrompt = mockGenerateContent.mock.calls[1][0].contents[0].parts[0].text;
+    expect(retryPrompt).toContain("严格逐字翻译");
+    warnSpy.mockRestore();
+  });
+
+  it("does not retry when output is a reasonable length", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+
+    const input = "Hello. ".repeat(500); // ~3500 chars
+    const output = "你好".repeat(1000); // ~2000 chars, ratio ~0.57 — normal
+
+    mockGenerateContent.mockResolvedValueOnce({
+      text: output,
+      candidates: [{ finishReason: "STOP" }],
+    });
+
+    await translateChunk(input);
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry for very short input (under 2000 chars)", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+
+    // Short input — even if ratio seems low, don't retry (too noisy)
+    mockGenerateContent.mockResolvedValueOnce({
+      text: "OK",
+      candidates: [{ finishReason: "STOP" }],
+    });
+
+    await translateChunk("Hi there.");
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps first result if retry is not meaningfully longer", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const longInput = "Hello. ".repeat(500);
+    const short1 = "这是一个简短翻译"; // 8 chars
+    const short2 = "这是另一简短译文"; // 8 chars, same length — retry isn't >1.3x
+
+    mockGenerateContent
+      .mockResolvedValueOnce({
+        text: short1,
+        candidates: [{ finishReason: "STOP" }],
+      })
+      .mockResolvedValueOnce({
+        text: short2,
+        candidates: [{ finishReason: "STOP" }],
+      });
+
+    const result = await translateChunk(longInput);
+
+    expect(result).toBe(short1); // kept the first since retry wasn't >1.3x
+    warnSpy.mockRestore();
   });
 });
 
