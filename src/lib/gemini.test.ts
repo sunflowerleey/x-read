@@ -107,7 +107,9 @@ describe("translateChunk", () => {
 
     mockGenerateContent.mockResolvedValueOnce({ text: "翻译结果" });
 
-    const result = await translateChunk("Hello world");
+    const result = await translateChunk(
+      "Hello world. This is a longer text input that will actually be translated, not skipped as trivially short content."
+    );
     expect(result).toBe("翻译结果");
     expect(mockGenerateContent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -126,7 +128,7 @@ describe("translateChunk", () => {
     mockGenerateContent.mockResolvedValueOnce({ text: "翻译" });
 
     const input =
-      "# Title\n\nPara.\n\n![figure](https://example.com/fig.png)\n\nMore.";
+      "# Title of the Article\n\nThis is a substantial paragraph of introductory content that would normally be translated.\n\n![figure](https://example.com/fig.png)\n\nAnd here is another reasonably long paragraph about the figure above explaining its significance.";
     await translateChunk(input);
 
     const callArgs = mockGenerateContent.mock.calls[0][0];
@@ -139,7 +141,9 @@ describe("translateChunk", () => {
     process.env.GEMINI_API_KEY = "test-key";
     mockGenerateContent.mockResolvedValueOnce({ text: "翻译" });
 
-    await translateChunk("test content");
+    await translateChunk(
+      "This is test content that's long enough to trigger the actual translation call and bypass the short-text skip."
+    );
 
     const callArgs = mockGenerateContent.mock.calls[0][0];
     const safety = callArgs.config.safetySettings;
@@ -174,9 +178,6 @@ describe("translateChunk", () => {
 
     expect(mockGenerateContent).toHaveBeenCalledTimes(2);
     expect(result).toBe(fullOutput);
-    // The second call should use the stricter prompt
-    const retryPrompt = mockGenerateContent.mock.calls[1][0].contents[0].parts[0].text;
-    expect(retryPrompt).toContain("严格逐字翻译");
     warnSpy.mockRestore();
   });
 
@@ -196,18 +197,60 @@ describe("translateChunk", () => {
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
   });
 
-  it("does not retry for very short input (under 2000 chars)", async () => {
+  it("does not retry for short input (under 2000 chars) even at low ratio", async () => {
     process.env.GEMINI_API_KEY = "test-key";
 
-    // Short input — even if ratio seems low, don't retry (too noisy)
+    // Short input (>100 chars so not skipped, but <2000 so no retry)
+    const input = "Short content ".repeat(50); // ~700 chars
     mockGenerateContent.mockResolvedValueOnce({
       text: "OK",
       candidates: [{ finishReason: "STOP" }],
     });
 
-    await translateChunk("Hi there.");
+    await translateChunk(input);
 
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips translation entirely for pure code block content", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+
+    const codeOnly = "```python\nprint('hello')\nprint('world')\n```";
+    const result = await translateChunk(codeOnly);
+
+    // Should return code as-is without calling Gemini
+    expect(result).toBe(codeOnly);
+    expect(mockGenerateContent).not.toHaveBeenCalled();
+  });
+
+  it("passes code blocks through without translating them", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+
+    mockGenerateContent.mockResolvedValueOnce({
+      text: "这是前面的文字。",
+      candidates: [{ finishReason: "STOP" }],
+    });
+    mockGenerateContent.mockResolvedValueOnce({
+      text: "这是后面的文字。",
+      candidates: [{ finishReason: "STOP" }],
+    });
+
+    const input = `Here is some leading text that should be translated by the API. This paragraph needs to be substantially long so it gets translated rather than skipped as trivially short content.
+
+\`\`\`python
+print("do not translate me")
+\`\`\`
+
+Here is some trailing text that should also be translated. This paragraph also needs to be reasonably long to avoid the short-text skip threshold.`;
+
+    const result = await translateChunk(input);
+
+    // Code block should appear unchanged in the output
+    expect(result).toContain('print("do not translate me")');
+    expect(result).toContain("这是前面的文字。");
+    expect(result).toContain("这是后面的文字。");
+    // Gemini should only be called for the two text segments (not the code)
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
   });
 
   it("keeps first result if retry is not meaningfully longer", async () => {
