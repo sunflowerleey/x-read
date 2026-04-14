@@ -19,6 +19,7 @@ Stack: Next.js 16 + React 19 + TypeScript + Tailwind CSS 4.
 - **PostToolUse (Edit/Write):** lint + typecheck on `.ts`/`.tsx`; tests on `.test.ts`
 - **Stop:** auto-regenerate `docs/QUALITY.md` when session ends
 - **PreCompact:** inject architecture + workflow context so it survives context compression
+- **Runtime invariants:** `src/lib/translationMetrics.ts` compares pre/post translation heading/image/block counts on every request. Violations log as `[translation-invariant]` for grep. See `POST /api/translate`.
 - CI: lint → typecheck → layer guard → quality gate → quality freshness → unit tests + E2E
 - Quality gate: all lib modules must have tests (C/D grade blocks merge)
 
