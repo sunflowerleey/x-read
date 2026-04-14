@@ -216,6 +216,75 @@ describe("extractArticleAsMarkdown", () => {
     expect(result!.markdown).toContain("can't render in markdown");
   });
 
+  it("converts .prefs-container widget into a markdown table", () => {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Paper With Data Table</title></head>
+      <body>
+        <article>
+          <h1>Paper With Data Table</h1>
+          <p>Below we present the activity Elo ratings comparing the post-trained model against the base model. The data shows clear differences in preference patterns between the two configurations.</p>
+          <figure class="gdoc-image">
+            <style>.prefs { color: red; }</style>
+            <div class="prefs-container">
+              <p class="prefs-title">Activity Elo Ratings</p>
+              <div class="prefs-group-header">
+                <span></span>
+                <span></span>
+                <span class="prefs-group-label">Post-Trained</span>
+                <span class="prefs-group-label">Base Model</span>
+              </div>
+              <div class="prefs-header">
+                <span class="prefs-col-label">Category</span>
+                <span class="prefs-col-label">Activity</span>
+                <span class="prefs-col-label-right">Elo</span>
+                <span class="prefs-col-label-right">Bliss.</span>
+                <span class="prefs-col-label-right">Elo</span>
+                <span class="prefs-col-label-right">Bliss.</span>
+              </div>
+              <div class="prefs-row">
+                <span class="prefs-category">Engaging</span>
+                <span class="prefs-description">admit uncertainty</span>
+                <span class="prefs-elo">2885</span>
+                <span class="prefs-num">0.004</span>
+                <span class="prefs-elo">2311</span>
+                <span class="prefs-num">0.012</span>
+              </div>
+              <div class="prefs-row">
+                <span class="prefs-category">Social</span>
+                <span class="prefs-description">collaborate with humans</span>
+                <span class="prefs-elo">2668</span>
+                <span class="prefs-num">0.022</span>
+                <span class="prefs-elo">2397</span>
+                <span class="prefs-num">0.029</span>
+              </div>
+            </div>
+          </figure>
+          <p>The differences in Elo scores between the two model variants suggest that post-training significantly affects the model's preferences across these activity categories.</p>
+        </article>
+      </body>
+      </html>
+    `;
+    const result = extractArticleAsMarkdown(html);
+
+    expect(result).not.toBeNull();
+    // Title should appear as bold
+    expect(result!.markdown).toContain("**Activity Elo Ratings**");
+    // Should be a proper GFM markdown table (header row + separator)
+    expect(result!.markdown).toMatch(/\|\s*Category\s*\|/);
+    expect(result!.markdown).toMatch(/\|\s*-+\s*\|/);
+    // Group labels should be merged into column labels
+    expect(result!.markdown).toContain("Post-Trained Elo");
+    expect(result!.markdown).toContain("Base Model Elo");
+    // Data rows present
+    expect(result!.markdown).toContain("Engaging");
+    expect(result!.markdown).toContain("admit uncertainty");
+    expect(result!.markdown).toContain("2885");
+    // CSS noise stripped
+    expect(result!.markdown).not.toContain("color: red");
+  });
+
   it("salvages text content from widget figures (when text is meaningful)", () => {
     // Real case from transformer-circuits.pub: a gdoc-image figure
     // contains an embedded HTML widget with structured prompt examples.
