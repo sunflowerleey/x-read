@@ -145,10 +145,15 @@ function splitToBlocks(markdown: string): string[] {
 
 /** Max size for a single translation chunk (chars). */
 const MAX_CHUNK_SIZE = 30_000;
+/** Target minimum chunk size — smaller chunks get merged with neighbors. */
+const MIN_CHUNK_SIZE = 10_000;
 
 /**
  * Split markdown into chunks for parallel translation.
- * First splits by h2 headings, then further splits oversized chunks by h3.
+ * 1. Split by ## headings
+ * 2. Further split oversized (>30KB) chunks by ### headings
+ * 3. Merge small adjacent chunks (target 10-30KB each) to reduce API calls
+ *
  * Short documents (< threshold) are returned as a single chunk.
  */
 export function splitIntoChunks(
@@ -163,17 +168,51 @@ export function splitIntoChunks(
   const coarseChunks = splitByHeadingLevel(markdown, "## ");
 
   // Second pass: split oversized chunks by ### headings
-  const chunks: string[] = [];
+  const expanded: string[] = [];
   for (const chunk of coarseChunks) {
     if (chunk.length > MAX_CHUNK_SIZE) {
-      const subChunks = splitByHeadingLevel(chunk, "### ");
-      chunks.push(...subChunks);
+      expanded.push(...splitByHeadingLevel(chunk, "### "));
     } else {
-      chunks.push(chunk);
+      expanded.push(chunk);
     }
   }
 
-  return chunks;
+  // Third pass: merge small adjacent chunks (keeps count low for faster overall)
+  return mergeSmallChunks(expanded);
+}
+
+/**
+ * Merge consecutive small chunks so each resulting chunk is ~MIN_CHUNK_SIZE
+ * or larger (but not exceeding MAX_CHUNK_SIZE). Reduces total API calls.
+ */
+function mergeSmallChunks(chunks: string[]): string[] {
+  const merged: string[] = [];
+  let buffer = "";
+
+  for (const chunk of chunks) {
+    if (buffer.length === 0) {
+      buffer = chunk;
+    } else if (buffer.length + chunk.length + 2 <= MAX_CHUNK_SIZE) {
+      // Fits — merge
+      buffer = buffer + "\n\n" + chunk;
+    } else {
+      // Would exceed max — flush and start fresh
+      merged.push(buffer);
+      buffer = chunk;
+    }
+
+    // If buffer reaches target size, flush it
+    if (buffer.length >= MIN_CHUNK_SIZE) {
+      merged.push(buffer);
+      buffer = "";
+    }
+  }
+
+  if (buffer.length > 0) {
+    merged.push(buffer);
+  }
+
+  return merged;
 }
 
 function splitByHeadingLevel(markdown: string, prefix: string): string[] {
@@ -200,12 +239,15 @@ function splitByHeadingLevel(markdown: string, prefix: string): string[] {
 /**
  * Translate a single chunk of markdown (non-streaming).
  * Used for parallel translation of multiple chunks.
+ *
+ * Uses a lower thinking budget than the single-shot path: each chunk is
+ * smaller and more self-contained, so deep thinking per chunk is wasteful.
  */
 export async function translateChunk(markdown: string): Promise<string> {
   const response = await getAI().models.generateContent({
     model: "gemini-2.5-flash",
     config: {
-      thinkingConfig: { thinkingBudget: 8192 },
+      thinkingConfig: { thinkingBudget: 2048 },
     },
     contents: [
       {

@@ -110,8 +110,8 @@ function parallelResponse(
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // Translate with limited concurrency to avoid Gemini rate limits
-        const settled = await translateWithConcurrency(chunks, 4);
+        // Translate with bounded concurrency to balance throughput vs rate limits
+        const settled = await translateWithConcurrency(chunks, 8);
 
         const results = settled.map((r, i) =>
           r.status === "fulfilled"

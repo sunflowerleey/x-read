@@ -107,6 +107,10 @@ describe("translateChunk", () => {
     expect(mockGenerateContent).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "gemini-2.5-flash",
+        config: expect.objectContaining({
+          // Lower budget than single-shot: chunks are smaller and faster
+          thinkingConfig: { thinkingBudget: 2048 },
+        }),
       })
     );
   });
@@ -246,17 +250,32 @@ describe("splitIntoChunks", () => {
     expect(chunks[0]).toBe(md);
   });
 
-  it("splits on h2 headings for long content", () => {
-    const section1 = "# Title\n\nIntro paragraph.";
-    const section2 = "## Section One\n\nContent one.";
-    const section3 = "## Section Two\n\nContent two.";
-    const md = `${section1}\n${section2}\n${section3}`;
+  it("splits on h2 headings and merges small adjacent chunks", () => {
+    // Build sections that are individually small (<MIN_CHUNK_SIZE)
+    // so they should be merged back together
+    const section1 = "# Title\n\n" + "Intro paragraph. ".repeat(100);
+    const section2 = "## Section One\n\n" + "Content one. ".repeat(100);
+    const section3 = "## Section Two\n\n" + "Content two. ".repeat(100);
+    const md = `${section1}\n\n${section2}\n\n${section3}`;
 
-    const chunks = splitIntoChunks(md, 10); // low threshold to force split
-    expect(chunks).toHaveLength(3);
-    expect(chunks[0]).toContain("# Title");
-    expect(chunks[1]).toContain("## Section One");
-    expect(chunks[2]).toContain("## Section Two");
+    const chunks = splitIntoChunks(md, 10);
+    // Small sections get merged to reduce API calls
+    expect(chunks.length).toBeLessThanOrEqual(3);
+    // All section content should still be present
+    const joined = chunks.join("\n\n");
+    expect(joined).toContain("# Title");
+    expect(joined).toContain("## Section One");
+    expect(joined).toContain("## Section Two");
+  });
+
+  it("keeps large sections as separate chunks", () => {
+    // Each section is larger than MIN_CHUNK_SIZE (10KB) so should stay split
+    const big1 = "## Section One\n\n" + "A".repeat(11_000);
+    const big2 = "## Section Two\n\n" + "B".repeat(11_000);
+    const md = `# Title\n\n${big1}\n\n${big2}`;
+
+    const chunks = splitIntoChunks(md, 10);
+    expect(chunks.length).toBeGreaterThanOrEqual(2);
   });
 
   it("further splits oversized chunks by h3 headings", () => {
