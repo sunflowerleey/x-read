@@ -258,6 +258,11 @@ function salvageWidgetContent(
     return formatPromptsWidget(promptsContainer, document);
   }
 
+  const prefsContainer = fig.querySelector(".prefs-container");
+  if (prefsContainer) {
+    return formatPrefsWidget(prefsContainer, document);
+  }
+
   // Generic widget: wrap in a blockquote so it renders with a visible
   // left border and stands out from regular paragraphs.
   const blockquote = document.createElement("blockquote");
@@ -342,6 +347,149 @@ function formatPromptsWidget(
   }
 
   return wrapper;
+}
+
+/**
+ * Convert a .prefs-container widget (data table) into a real <table>.
+ * Structure:
+ *   .prefs-title              → caption above table
+ *   .prefs-group-header (opt) → top-row group labels (e.g. Post-Trained vs Base)
+ *   .prefs-header             → column labels
+ *   .prefs-row × N            → data rows (mix of .prefs-category, -description,
+ *                                -elo, -num children — order matters)
+ *   .prefs-caption (opt)      → italic caption below
+ *
+ * node-html-markdown converts <table> to GFM table syntax.
+ */
+function formatPrefsWidget(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  container: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  document: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): any {
+  const wrapper = document.createElement("div");
+
+  // Title → bold paragraph above the table
+  const titleEl = container.querySelector(".prefs-title");
+  if (titleEl) {
+    const titleText = (titleEl.textContent || "").trim();
+    if (titleText) {
+      const p = document.createElement("p");
+      const strong = document.createElement("strong");
+      strong.textContent = titleText;
+      p.appendChild(strong);
+      wrapper.appendChild(p);
+    }
+  }
+
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+
+  // Build header row(s)
+  const headerLabels = Array.from(
+    container.querySelectorAll(".prefs-header > *")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ).map((el: any) => (el.textContent || "").trim());
+
+  const groupLabels = Array.from(
+    container.querySelectorAll(".prefs-group-header > *")
+  )
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((el: any) => (el.textContent || "").trim());
+
+  if (headerLabels.length > 0) {
+    // GFM tables don't support multi-row headers. If we have group labels,
+    // merge them into the column labels: "Post-Trained Elo", "Base Elo", etc.
+    const finalHeaders =
+      groupLabels.length > 0 && groupLabels.some((g) => g.length > 0)
+        ? mergeGroupHeaders(headerLabels, groupLabels)
+        : headerLabels;
+
+    const headerRow = document.createElement("tr");
+    for (const label of finalHeaders) {
+      const th = document.createElement("th");
+      th.textContent = label;
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+  }
+
+  // Body rows
+  const tbody = document.createElement("tbody");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  container.querySelectorAll(".prefs-row").forEach((row: any) => {
+    const tr = document.createElement("tr");
+    // Each child <span> is a cell; preserve order
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Array.from(row.children).forEach((cell: any) => {
+      const td = document.createElement("td");
+      td.textContent = (cell.textContent || "").trim();
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+
+  wrapper.appendChild(table);
+
+  // Caption below table
+  const caption = container.querySelector(".prefs-caption");
+  if (caption) {
+    const captionText = (caption.textContent || "").trim();
+    if (captionText) {
+      const p = document.createElement("p");
+      const em = document.createElement("em");
+      em.textContent = captionText;
+      p.appendChild(em);
+      wrapper.appendChild(p);
+    }
+  }
+
+  return wrapper;
+}
+
+/**
+ * Merge group labels (e.g. ["", "", "Post-Trained", "Base Model"]) with
+ * per-column labels (e.g. ["Cat", "Activity", "Elo", "Bliss.", "Host.",
+ * "Elo", "Bliss.", "Host."]) into single labels:
+ *   ["Cat", "Activity", "Post-Trained Elo", "Post-Trained Bliss.", ...]
+ *
+ * Heuristic: each non-empty group label spans (totalCols - groupCount) /
+ * (groupCount of non-empty) columns. Falls back to "Group · Col" format.
+ */
+function mergeGroupHeaders(
+  cols: string[],
+  groups: string[]
+): string[] {
+  // Identify which groups are content-bearing (non-empty)
+  const contentGroups = groups.filter((g) => g.trim().length > 0);
+  if (contentGroups.length === 0) return cols;
+
+  // Number of leading non-grouped columns (e.g. Category, Activity)
+  const nonGroupedCols = cols.length - contentGroups.length * Math.floor(
+    (cols.length - (groups.length - contentGroups.length)) / contentGroups.length
+  );
+
+  // Columns under each group
+  const colsPerGroup = Math.floor(
+    (cols.length - nonGroupedCols) / contentGroups.length
+  );
+
+  if (colsPerGroup <= 0) return cols;
+
+  const result: string[] = [];
+  for (let i = 0; i < cols.length; i++) {
+    if (i < nonGroupedCols) {
+      result.push(cols[i]);
+    } else {
+      const groupIdx = Math.floor((i - nonGroupedCols) / colsPerGroup);
+      const groupLabel = contentGroups[groupIdx] || "";
+      result.push(groupLabel ? `${groupLabel} ${cols[i]}` : cols[i]);
+    }
+  }
+  return result;
 }
 
 /**
