@@ -263,15 +263,71 @@ async function callGemini(markdown: string, prompt: string) {
 }
 
 /**
+ * Split markdown around fenced code blocks into translate-able text
+ * segments and pass-through code segments. Code blocks are displayed
+ * verbatim without an API call — they're machine-readable content
+ * (prompts, shell commands, code) that should not be translated and
+ * often triggers Gemini's summarization heuristics.
+ */
+export function splitAroundCodeBlocks(
+  markdown: string
+): { type: "text" | "code"; content: string }[] {
+  const segments: { type: "text" | "code"; content: string }[] = [];
+  // Match fenced code blocks (``` with optional language tag, closing ```)
+  const regex = /^```[^\n]*\n[\s\S]*?^```\s*$/gm;
+
+  let lastIdx = 0;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(markdown)) !== null) {
+    if (m.index > lastIdx) {
+      segments.push({ type: "text", content: markdown.slice(lastIdx, m.index) });
+    }
+    segments.push({ type: "code", content: m[0] });
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx < markdown.length) {
+    segments.push({ type: "text", content: markdown.slice(lastIdx) });
+  }
+
+  return segments;
+}
+
+/**
  * Translate a single chunk of markdown (non-streaming).
- * Retries with a stricter prompt if the first attempt summarizes
- * instead of translating (output too short but finishReason=STOP).
+ *
+ * 1. Splits around fenced code blocks — code passes through untranslated
+ *    (saves API calls and prevents Gemini from summarizing code)
+ * 2. Translates each text segment, retrying with a stricter prompt if
+ *    the first attempt summarizes (output too short, finishReason=STOP)
+ * 3. Reassembles segments in original order
  *
  * maxOutputTokens is critical: Gemini's default (8192) truncates long
  * translations silently. A 30KB English chunk needs ~15K output tokens
  * in Chinese. We set a generous limit to avoid mid-translation cutoff.
  */
 export async function translateChunk(markdown: string): Promise<string> {
+  const segments = splitAroundCodeBlocks(markdown);
+
+  // Fast path: if the chunk is entirely code, no translation needed
+  if (segments.every((s) => s.type === "code")) {
+    return markdown;
+  }
+
+  // Translate text segments in parallel (they're independent)
+  const translatedSegments = await Promise.all(
+    segments.map(async (seg) => {
+      if (seg.type === "code") return seg.content;
+      // Skip translation for very short text (usually just newlines between code blocks)
+      if (seg.content.trim().length < 100) return seg.content;
+      return translateTextSegment(seg.content);
+    })
+  );
+
+  return translatedSegments.join("");
+}
+
+/** Translate a single text segment with retry-on-summarization. */
+async function translateTextSegment(markdown: string): Promise<string> {
   const first = await callGemini(markdown, TRANSLATION_PROMPT);
 
   if (first.finishReason && first.finishReason !== "STOP") {
