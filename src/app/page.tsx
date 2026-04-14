@@ -1,13 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useContentFetcher } from "@/hooks/useTweetFetcher";
 import { useTheme } from "@/hooks/useTheme";
 import ContentDisplay from "@/components/ContentDisplay";
 import ThemeToggle from "@/components/ThemeToggle";
 
+const TRANSLATE_PREF_KEY = "x-read:translate";
+
+function subscribeLocalStorage(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
+function useTranslatePref(): [boolean, (next: boolean) => void] {
+  // Use useSyncExternalStore so React re-renders when localStorage changes
+  // (including writes from this same tab via dispatchEvent below)
+  const stored = useSyncExternalStore(
+    subscribeLocalStorage,
+    () => localStorage.getItem(TRANSLATE_PREF_KEY),
+    () => null // SSR: use default
+  );
+  const enabled = stored === null ? true : stored === "true";
+
+  const setEnabled = (next: boolean) => {
+    localStorage.setItem(TRANSLATE_PREF_KEY, String(next));
+    // Notify useSyncExternalStore subscribers (the storage event only
+    // fires in OTHER tabs, not the writing tab)
+    window.dispatchEvent(new StorageEvent("storage", { key: TRANSLATE_PREF_KEY }));
+  };
+
+  return [enabled, setEnabled];
+}
+
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [translateEnabled, setTranslateEnabled] = useTranslatePref();
   const { theme, toggleTheme } = useTheme();
   const {
     fetchContent,
@@ -21,7 +49,7 @@ export default function Home() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!url.trim()) return;
-    fetchContent(url.trim());
+    fetchContent(url.trim(), translateEnabled);
   }
 
   return (
@@ -39,29 +67,45 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <form onSubmit={handleSubmit} className="flex gap-3 mb-8">
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste any URL — Twitter, blog posts, articles, etc."
-            className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-800 dark:text-gray-200 dark:placeholder-gray-500"
-            disabled={status === "fetching"}
-          />
-          <button
-            type="submit"
-            disabled={!url.trim() || status === "fetching"}
-            className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-          >
-            {status === "fetching" ? (
-              <span className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Fetching...
-              </span>
-            ) : (
-              "Fetch"
-            )}
-          </button>
+        <form onSubmit={handleSubmit} className="mb-8">
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Paste any URL — Twitter, blog posts, articles, etc."
+              className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-800 dark:text-gray-200 dark:placeholder-gray-500"
+              disabled={status === "fetching"}
+            />
+            <button
+              type="submit"
+              disabled={!url.trim() || status === "fetching"}
+              className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              {status === "fetching" ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Fetching...
+                </span>
+              ) : (
+                "Fetch"
+              )}
+            </button>
+          </div>
+          <label className="mt-3 flex items-center gap-2 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={translateEnabled}
+              onChange={(e) => setTranslateEnabled(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+            />
+            <span className="text-sm text-gray-700 dark:text-gray-300">
+              翻译为中文
+            </span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              (Translate English content to Chinese)
+            </span>
+          </label>
         </form>
 
         {error && (

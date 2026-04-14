@@ -15,7 +15,7 @@ export function useContentFetcher() {
   );
   const abortRef = useRef<AbortController | null>(null);
 
-  const fetchContent = useCallback(async (url: string) => {
+  const fetchContent = useCallback(async (url: string, translate = true) => {
     abortRef.current?.abort();
 
     setStatus("fetching");
@@ -37,8 +37,8 @@ export function useContentFetcher() {
       setContentData(data.content);
       setOriginalMarkdown(data.markdown);
 
-      // Auto-translate if English
-      if (data.content.language === "en") {
+      // Auto-translate if English AND the user has translation enabled
+      if (translate && data.content.language === "en") {
         setStatus("translating");
         setTranslatedMarkdown("");
 
