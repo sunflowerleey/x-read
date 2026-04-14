@@ -5,9 +5,10 @@ import {
   stripImages,
   restoreImages,
   splitIntoChunks,
+  type ImageAnchor,
 } from "@/lib/gemini";
 
-type ImageEntry = { blockIndex: number; image: string };
+type ImageEntry = ImageAnchor;
 
 export async function POST(req: NextRequest) {
   try {
