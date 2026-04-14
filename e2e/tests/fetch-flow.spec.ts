@@ -111,6 +111,54 @@ test.describe("Fetch and translate flow", () => {
     await expect(page.getByText(/example\.com \·/)).toBeVisible();
   });
 
+  test("skips translation API call when translate toggle is off", async ({
+    page,
+  }) => {
+    await page.route("**/api/fetch-content", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_TWITTER_RESPONSE),
+      });
+    });
+
+    // If the translate toggle is working, /api/translate MUST NOT be called
+    let translateCalled = false;
+    await page.route("**/api/translate", async (route) => {
+      translateCalled = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: MOCK_SSE_STREAM,
+      });
+    });
+
+    await page.goto("/");
+
+    // Uncheck the translate toggle
+    const toggle = page.getByRole("checkbox", { name: /翻译/ });
+    await expect(toggle).toBeChecked(); // defaults to true
+    await toggle.uncheck();
+
+    await page.fill(
+      'input[type="text"]',
+      "https://x.com/testuser/status/123"
+    );
+    await page.click('button:has-text("Fetch")');
+
+    // Original English content appears
+    await expect(page.locator("text=Hello world from test!")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Give any pending translate request time to fire
+    await page.waitForTimeout(500);
+    expect(translateCalled).toBe(false);
+
+    // Translated text should NOT appear
+    await expect(page.locator("text=来自测试的你好世界")).not.toBeVisible();
+  });
+
   test("shows error for invalid URL", async ({ page }) => {
     await page.route("**/api/fetch-content", async (route) => {
       await route.fulfill({
