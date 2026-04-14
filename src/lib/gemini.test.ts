@@ -51,7 +51,7 @@ describe("streamTranslateToChineseMarkdown", () => {
     expect(chunks).toEqual(["# 你好", "\n\n世界"]);
     expect(mockGenerateContentStream).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "gemini-2.5-flash",
+        model: "gemini-3-flash-preview",
         config: expect.objectContaining({
           thinkingConfig: { thinkingBudget: 8192 },
         }),
@@ -113,7 +113,7 @@ describe("translateChunk", () => {
     expect(result).toBe("翻译结果");
     expect(mockGenerateContent).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "gemini-2.5-flash",
+        model: "gemini-3-flash-preview",
         config: expect.objectContaining({
           // Lower budget than single-shot: chunks are smaller and faster
           thinkingConfig: { thinkingBudget: 2048 },
