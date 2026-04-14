@@ -4,6 +4,11 @@ import {
   translateChunk,
   splitIntoChunks,
 } from "@/lib/gemini";
+import {
+  computeMetrics,
+  checkTranslationInvariants,
+  logMetrics,
+} from "@/lib/translationMetrics";
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,11 +65,18 @@ function streamResponse(encoder: TextEncoder, markdown: string) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        const parts: string[] = [];
         for await (const chunk of streamTranslateToChineseMarkdown(markdown)) {
+          parts.push(chunk);
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`)
           );
         }
+        // Invariant check: compare pre/post translation metrics
+        const before = computeMetrics(markdown);
+        const after = computeMetrics(parts.join(""));
+        logMetrics("stream", checkTranslationInvariants(before, after));
+
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch (e) {
@@ -95,6 +107,13 @@ function parallelResponse(encoder: TextEncoder, chunks: string[]) {
         );
 
         const full = results.join("\n\n");
+
+        // Invariant check: compare pre/post translation metrics
+        const originalMarkdown = chunks.join("\n\n");
+        const before = computeMetrics(originalMarkdown);
+        const after = computeMetrics(full);
+        logMetrics("parallel", checkTranslationInvariants(before, after));
+
         // Use fullText so client replaces (not appends) — parallel path emits
         // the complete translation in one shot, not incremental chunks
         controller.enqueue(

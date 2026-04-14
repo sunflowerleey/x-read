@@ -13,14 +13,15 @@
 | `lib/htmlToMarkdown.ts` | 248 | **B** | 24 | Yes |
 | `lib/markdown.ts` | 110 | **B** | 14 | Yes |
 | `lib/splitMarkdown.ts` | 104 | **B** | 8 | Yes |
+| `lib/translationMetrics.ts` | 111 | **B** | 18 | Yes |
 | `lib/twitter.ts` | 108 | **B** | 12 | Yes |
 | `lib/types.ts` | 32 | **B** | 0 | No |
 | `lib/webpage.ts` | 135 | **B** | 7 | Yes |
 
 ## Summary
-- **Total lib files:** 10
-- **Files with tests:** 9 / 10
-- **Total test cases:** 114
-- **Total lib lines:** 1401
+- **Total lib files:** 11
+- **Files with tests:** 10 / 11
+- **Total test cases:** 132
+- **Total lib lines:** 1512
 
 *Last updated: 2026-04-14*
