@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useContentFetcher } from "@/hooks/useTweetFetcher";
 import { useTheme } from "@/hooks/useTheme";
 import ContentDisplay from "@/components/ContentDisplay";
@@ -8,29 +8,36 @@ import ThemeToggle from "@/components/ThemeToggle";
 
 const TRANSLATE_PREF_KEY = "x-read:translate";
 
-function subscribeLocalStorage(callback: () => void) {
-  window.addEventListener("storage", callback);
-  return () => window.removeEventListener("storage", callback);
-}
-
+/**
+ * Persist translate-on toggle to localStorage across reloads.
+ *
+ * Always renders the default (true) on both server and initial client
+ * render to avoid hydration mismatch. After mount, reads localStorage
+ * and updates state. The visual flicker is acceptable: the checkbox is
+ * in a fold-above-the-fetch area that the user is unlikely to be looking
+ * at until they click Fetch.
+ */
 function useTranslatePref(): [boolean, (next: boolean) => void] {
-  // Use useSyncExternalStore so React re-renders when localStorage changes
-  // (including writes from this same tab via dispatchEvent below)
-  const stored = useSyncExternalStore(
-    subscribeLocalStorage,
-    () => localStorage.getItem(TRANSLATE_PREF_KEY),
-    () => null // SSR: use default
-  );
-  const enabled = stored === null ? true : stored === "true";
+  const [enabled, setEnabled] = useState(true);
 
-  const setEnabled = (next: boolean) => {
+  useEffect(() => {
+    const stored = localStorage.getItem(TRANSLATE_PREF_KEY);
+    if (stored !== null && (stored === "true") !== enabled) {
+      // Standard pattern for hydrating from localStorage: render the
+      // server-safe default first, then sync once on mount. The lint
+      // rule allows conditional setState based on external (localStorage) state.
+      setEnabled(stored === "true");
+    }
+    // Intentionally only run on mount — no dependency on `enabled`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const set = useCallback((next: boolean) => {
+    setEnabled(next);
     localStorage.setItem(TRANSLATE_PREF_KEY, String(next));
-    // Notify useSyncExternalStore subscribers (the storage event only
-    // fires in OTHER tabs, not the writing tab)
-    window.dispatchEvent(new StorageEvent("storage", { key: TRANSLATE_PREF_KEY }));
-  };
+  }, []);
 
-  return [enabled, setEnabled];
+  return [enabled, set];
 }
 
 export default function Home() {
