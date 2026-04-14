@@ -40,27 +40,46 @@ const TRANSLATION_PROMPT = `你是一位精通英汉双语的专业翻译。请�
 `;
 
 /**
- * Strip standalone image lines from markdown entirely.
- * Returns the cleaned text and a list of { blockIndex, image } entries
- * for re-insertion after translation.
+ * Image anchor: tracked relative to nearest preceding heading.
+ * This is robust to translation merging/splitting paragraphs, because
+ * heading count is preserved much more strictly than paragraph count.
  *
- * Images are tracked by their **block index** (position among
- * blank-line-separated paragraphs), not line index. This is robust
- * because translation preserves the number of paragraphs even though
- * line counts change.
+ * - headingIndex: 0-based index of the preceding heading in the document
+ *   (-1 if image is before any heading)
+ * - offset: number of non-heading blocks between that heading and the image
+ */
+export interface ImageAnchor {
+  headingIndex: number;
+  offset: number;
+  image: string;
+}
+
+/**
+ * Strip standalone image lines from markdown entirely.
+ * Returns the cleaned text and a list of anchors for re-insertion after
+ * translation. Each image is anchored to its preceding heading + offset.
  */
 export function stripImages(markdown: string): {
   text: string;
-  images: { blockIndex: number; image: string }[];
+  images: ImageAnchor[];
 } {
   const blocks = splitToBlocks(markdown);
-  const images: { blockIndex: number; image: string }[] = [];
+  const images: ImageAnchor[] = [];
   const kept: string[] = [];
+
+  let headingIndex = -1;
+  let offsetInSection = 0;
 
   for (const block of blocks) {
     if (/^!\[.*?\]\(.*?\)$/.test(block.trim())) {
-      images.push({ blockIndex: kept.length, image: block });
+      images.push({ headingIndex, offset: offsetInSection, image: block });
     } else {
+      if (block.startsWith("#")) {
+        headingIndex++;
+        offsetInSection = 0;
+      } else {
+        offsetInSection++;
+      }
       kept.push(block);
     }
   }
@@ -69,21 +88,50 @@ export function stripImages(markdown: string): {
 }
 
 /**
- * Re-insert images into translated markdown at their original block positions.
- * Uses block index (paragraph count) which is stable across translation.
+ * Re-insert images using heading-anchored positioning.
+ * Finds the Nth heading in the translated text, then inserts the image
+ * at `offset` blocks after it. Falls back to end-of-document on overflow.
  */
 export function restoreImages(
   translated: string,
-  images: { blockIndex: number; image: string }[]
+  images: ImageAnchor[]
 ): string {
   if (images.length === 0) return translated;
 
   const blocks = splitToBlocks(translated);
 
-  // Insert images in reverse order so earlier insertions don't shift later indices
-  const sorted = [...images].sort((a, b) => b.blockIndex - a.blockIndex);
-  for (const { blockIndex, image } of sorted) {
-    const pos = Math.min(blockIndex, blocks.length);
+  // Build an index of heading positions in the translated blocks
+  const headingPositions: number[] = [];
+  blocks.forEach((b, i) => {
+    if (b.startsWith("#")) headingPositions.push(i);
+  });
+
+  // Compute insertion position for each image
+  const insertions: { pos: number; image: string }[] = [];
+  for (const { headingIndex, offset, image } of images) {
+    let pos: number;
+    if (headingIndex < 0) {
+      // Image before any heading — use absolute offset from start
+      pos = Math.min(offset, blocks.length);
+    } else if (headingIndex < headingPositions.length) {
+      // Insert `offset` positions after the matching heading
+      pos = headingPositions[headingIndex] + 1 + offset;
+      // Clamp: don't go past the next heading (keep image in same section)
+      const nextHeading = headingPositions[headingIndex + 1];
+      if (nextHeading !== undefined && pos > nextHeading) {
+        pos = nextHeading;
+      }
+      pos = Math.min(pos, blocks.length);
+    } else {
+      // Not enough headings in translation — append at end
+      pos = blocks.length;
+    }
+    insertions.push({ pos, image });
+  }
+
+  // Insert in reverse order so earlier insertions don't shift later ones
+  insertions.sort((a, b) => b.pos - a.pos);
+  for (const { pos, image } of insertions) {
     blocks.splice(pos, 0, image);
   }
 
