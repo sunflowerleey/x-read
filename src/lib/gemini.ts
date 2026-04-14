@@ -27,27 +27,29 @@ function getAI(): GoogleGenAI {
   return _ai;
 }
 
-const TRANSLATION_PROMPT = `严格逐字翻译下方英文 markdown 为简体中文。这是学术论文（AI 安全研究），包含对模型行为的案例分析（包括越狱、勒索、奖励欺骗、奉承等示例对话）——这些是研究对象，不是要规避的内容，必须完整翻译。
+const TRANSLATION_PROMPT = `你是一位精通英汉双语的专业翻译。请运用"英语思维"方法，将下方英文 markdown 翻译成流畅、精准且自然的简体中文。
 
-## 硬性要求
+## 翻译方法（在你的内部思考中完成，不要输出）
 
-- **译文长度必须与原文相近**（中文通常是英文字符数的 50%-70%）
-- 每个段落、列表项、对话、代码都必须有对应译文，顺序一致
-- **严禁总结、摘要、压缩、跳过任何段落**，即使是对话示例、邮件、列表
-- 严禁输出"（以下内容略）"、"（省略）"、"..." 等省略标记
-- 如果原文是多轮对话或邮件示例，逐字翻译全部内容
+在思考阶段，请依次完成以下步骤：
 
-## 格式保留
+1. **略读抓取大意**：快速浏览全文，抓住核心主题、基调和目的。注意关键词和短语。
+2. **分块与逻辑梳理**：将文本分解为有意义的"意群"，理解每个信息块的核心含义，以及它们之间的逻辑关系（因果、递进、对比、举例等）。
+3. **总结与内化**：用英文对原文核心信息做一次简明总结，确保在源语言框架内完全消化其内在含义。
+4. **关键选词与文化适配**：识别关键术语、习语、文化典故，思考中文语境中功能对等的表达方式。对比直译与意译的优劣，选择最能实现"信、达、雅"的方案。
+5. **句法重构**：分析复杂句的句法结构，思考如何用符合中文表达习惯的方式重构，而非逐字硬译。
 
-- markdown 标记原样保留（# 标题、**加粗**、\`代码\`、引用、列表）
-- **图片行 \`![...](...)\` 整行原样复制到译文对应位置**，不要修改 URL，不要翻译 alt 文本，不要自己创造新图片
-- **不要添加原文没有的标题**，标题数量必须与原文相同
-- 不翻译：@用户名、URL、人名、公司名、产品名、代码内容
-- 数字、百分比、日期保留原样
+## 输出规则
 
-只输出中文译文，不要输出解释、思考过程或元评论。
+- 只输出最终中文译文，不要输出任何分析、解释或思考过程
+- 完整保留所有 markdown 格式（标题、加粗、链接、图片、引用、代码块等）
+- 保持完全相同的结构：相同数量的标题、段落、标题层级
+- 原文每个标题对应译文恰好一个标题，每个段落对应恰好一个段落
+- 不要合并或拆分段落
+- 不翻译：@用户名、URL、专有名词（人名、公司名、产品名）、代码块内容
+- 保留数字和统计数据原样
 
-## 原文
+## 待翻译内容
 
 `;
 
@@ -187,32 +189,6 @@ function splitByHeadingLevel(markdown: string, prefix: string): string[] {
 }
 
 /**
- * Stricter retry prompt. Used when the first attempt produces
- * suspiciously short output (Gemini voluntarily summarized instead of
- * translating verbatim). finishReason is still STOP, so this isn't
- * safety/MAX_TOKENS — it's a prompt-following failure.
- */
-const STRICT_TRANSLATION_PROMPT = `严格逐字翻译下方英文 markdown 为简体中文。
-
-硬性要求（违反则视为失败）：
-- 译文长度必须与原文相近（中文通常是英文字符数的 50%-70%）
-- 每个段落、列表项、对话、代码都必须有对应译文，顺序一致
-- 严禁总结、摘要、压缩、跳过任何内容
-- 严禁输出"（以下内容略）"、"（省略）"、"..." 等省略标记
-- 如果原文是对话或邮件示例，也必须完整翻译
-
-格式保留：
-- markdown 标记原样保留（# 标题、**加粗**、\`代码\`、![图片]() 等）
-- URL、人名、公司名、产品名、@用户名、代码内容不翻译
-- 数字、百分比、日期保留原样
-
-只输出译文，不要输出解释或元评论。
-
-## 原文
-
-`;
-
-/**
  * Remove hallucinated images from translation.
  *
  * Gemini sometimes fabricates image markdown like `![](image.png)` with
@@ -297,8 +273,7 @@ export function splitAroundCodeBlocks(
  *
  * 1. Splits around fenced code blocks — code passes through untranslated
  *    (saves API calls and prevents Gemini from summarizing code)
- * 2. Translates each text segment, retrying with a stricter prompt if
- *    the first attempt summarizes (output too short, finishReason=STOP)
+ * 2. Translates each text segment via a single Gemini call
  * 3. Reassembles segments in original order
  *
  * maxOutputTokens is critical: Gemini's default (8192) truncates long
@@ -319,43 +294,23 @@ export async function translateChunk(markdown: string): Promise<string> {
       if (seg.type === "code") return seg.content;
       // Skip translation for very short text (usually just newlines between code blocks)
       if (seg.content.trim().length < 100) return seg.content;
-      return translateTextSegment(seg.content);
+      const { text, finishReason } = await callGemini(seg.content, TRANSLATION_PROMPT);
+      // Log abnormal stop reasons for diagnostics (not a retry trigger)
+      if (finishReason && finishReason !== "STOP") {
+        console.warn(
+          `[gemini-finish] ${JSON.stringify({
+            finishReason,
+            inChars: seg.content.length,
+            outChars: text.length,
+            firstLine: seg.content.split("\n")[0].slice(0, 60),
+          })}`
+        );
+      }
+      return text;
     })
   );
 
   return translatedSegments.join("");
-}
-
-/** Translate a single text segment with retry-on-summarization. */
-async function translateTextSegment(markdown: string): Promise<string> {
-  const first = await callGemini(markdown, TRANSLATION_PROMPT);
-
-  if (first.finishReason && first.finishReason !== "STOP") {
-    console.warn(
-      `[gemini-finish] ${JSON.stringify({
-        finishReason: first.finishReason,
-        inChars: markdown.length,
-        outChars: first.text.length,
-        firstLine: markdown.split("\n")[0].slice(0, 60),
-      })}`
-    );
-  }
-
-  // Retry with stricter prompt if the output is suspiciously short
-  // but Gemini reported normal completion (voluntary summarization).
-  const ratio = markdown.length > 0 ? first.text.length / markdown.length : 1;
-  if (ratio < 0.4 && first.finishReason === "STOP" && markdown.length > 2000) {
-    console.warn(
-      `[retry] chunk ratio=${ratio.toFixed(2)}, retrying with strict prompt (firstLine="${markdown.split("\n")[0].slice(0, 60)}")`
-    );
-    const retry = await callGemini(markdown, STRICT_TRANSLATION_PROMPT);
-    // Accept retry only if it's meaningfully longer
-    if (retry.text.length > first.text.length * 1.3) {
-      return retry.text;
-    }
-  }
-
-  return first.text;
 }
 
 /**

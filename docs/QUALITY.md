@@ -9,7 +9,7 @@
 | `lib/alignBlocks.ts` | 139 | **B** | 10 | Yes |
 | `lib/cleanJinaMarkdown.ts` | 313 | **B** | 21 | Yes |
 | `lib/escapeHtml.ts` | 26 | **A** | 7 | Yes |
-| `lib/gemini.ts` | 389 | **B** | 25 | Yes |
+| `lib/gemini.ts` | 344 | **B** | 22 | Yes |
 | `lib/htmlToMarkdown.ts` | 260 | **B** | 32 | Yes |
 | `lib/markdown.ts` | 110 | **B** | 14 | Yes |
 | `lib/readabilityToMarkdown.ts` | 543 | **B** | 12 | Yes |
@@ -22,7 +22,7 @@
 ## Summary
 - **Total lib files:** 12
 - **Files with tests:** 11 / 12
-- **Total test cases:** 171
-- **Total lib lines:** 2325
+- **Total test cases:** 168
+- **Total lib lines:** 2280
 
 *Last updated: 2026-04-14*
