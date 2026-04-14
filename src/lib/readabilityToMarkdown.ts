@@ -35,6 +35,12 @@ export function extractArticleAsMarkdown(
 ): ExtractedArticle | null {
   const { document } = parseHTML(html);
 
+  // Extract "hero figures" (figures inside <d-title> blocks) BEFORE
+  // preprocessing unwraps <d-title>. Readability strips standalone
+  // figures with no surrounding text as low-content, so we capture
+  // these and prepend them to the markdown after extraction.
+  const heroFigures = extractHeroFigures(document);
+
   // Normalize custom elements (Distill / Google Docs / Anthropic blog style)
   // BEFORE Readability runs — so it sees clean figure/pre elements.
   preprocessCustomElements(document);
@@ -71,13 +77,24 @@ export function extractArticleAsMarkdown(
 
   // Resolve relative image URLs before passing to the markdown converter.
   // node-html-markdown preserves URLs as-is from the HTML input.
+  // Also resolve URLs in the captured hero figures.
   const absoluteContent = resolveRelativeUrls(article.content, baseUrl);
+  const absoluteHeroes = heroFigures.map((h) => resolveRelativeUrls(h, baseUrl));
 
   const nhm = new NodeHtmlMarkdown({
     keepDataImages: false,
   });
 
-  const markdown = nhm.translate(absoluteContent).trim();
+  const heroMarkdown = absoluteHeroes
+    .map((h) => nhm.translate(h).trim())
+    .filter(Boolean)
+    .join("\n\n");
+  const bodyMarkdown = nhm.translate(absoluteContent).trim();
+
+  // Prepend hero figures to the article body
+  const markdown = heroMarkdown
+    ? `${heroMarkdown}\n\n${bodyMarkdown}`
+    : bodyMarkdown;
 
   if (!markdown) return null;
 
@@ -85,6 +102,22 @@ export function extractArticleAsMarkdown(
     title: article.title ?? undefined,
     markdown,
   };
+}
+
+/**
+ * Extract <figure> elements that are inside <d-title> blocks (Distill
+ * "hero figures"). These are removed from the DOM so Readability won't
+ * even see them; we re-insert them into the markdown after extraction.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractHeroFigures(document: any): string[] {
+  const heroes: string[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  document.querySelectorAll("d-title figure").forEach((fig: any) => {
+    heroes.push(fig.outerHTML);
+    fig.remove();
+  });
+  return heroes;
 }
 
 /**
@@ -112,6 +145,32 @@ export function extractArticleAsMarkdown(
 // the structural typing diverges. This function only uses standard DOM APIs.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function preprocessCustomElements(document: any): void {
+  // 0. Unwrap Distill custom elements (<d-title>, <d-byline>, <d-article>,
+  //     <d-front-matter>, <d-bibliography>) to plain <div>s. Readability
+  //     treats unknown <d-*> elements as titles/metadata and may strip
+  //     their non-text contents.
+  const distillTags = [
+    "d-title",
+    "d-byline",
+    "d-article",
+    "d-front-matter",
+    "d-bibliography",
+    "d-appendix",
+    "d-footnote",
+  ];
+  for (const tag of distillTags) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    document.querySelectorAll(tag).forEach((el: any) => {
+      const div = document.createElement("div");
+      // Move children rather than copying innerHTML to preserve event
+      // listeners, attributes, and avoid re-parsing
+      while (el.firstChild) {
+        div.appendChild(el.firstChild);
+      }
+      el.replaceWith(div);
+    });
+  }
+
   // 1. prompt-block → <pre><code>...</code></pre>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   document.querySelectorAll(".prompt-block").forEach((el: any) => {
@@ -140,6 +199,13 @@ function preprocessCustomElements(document: any): void {
     const caption = fig.querySelector("figcaption");
     if (caption && !img.getAttribute("alt")) {
       img.setAttribute("alt", (caption.textContent || "").trim());
+    }
+    // Fallback alt from filename when no caption — helps Readability
+    // recognize the image as content rather than decoration
+    if (!img.getAttribute("alt")) {
+      const src = img.getAttribute("src") || "";
+      const filename = src.split("/").pop()?.replace(/\.[^.]+$/, "")?.replace(/[-_]/g, " ") || "Figure";
+      img.setAttribute("alt", filename);
     }
     // Strip any embedded DOCTYPE/html/head/body/script/style noise left
     // inside the figure. Only keep the img (and optionally figcaption).

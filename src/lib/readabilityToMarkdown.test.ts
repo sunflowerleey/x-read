@@ -152,6 +152,40 @@ describe("extractArticleAsMarkdown", () => {
     );
   });
 
+  it("preserves hero figure inside <d-title> (Distill template)", () => {
+    // Regression: the transformer-circuits.pub paper has its hero image
+    // inside <d-title>, where Readability scores it as low-content and
+    // strips it. We extract it before Readability runs and prepend.
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Distill Style Paper</title></head>
+      <body>
+        <d-title>
+          <h1>Distill Style Paper</h1>
+          <figure class="gdoc-image" key="hero">
+            <img src="hero.png" />
+          </figure>
+        </d-title>
+        <d-article>
+          <p>This is the main body of the paper. It needs to be substantial enough that Readability classifies the document as an article. We add multiple paragraphs to ensure the content threshold is met.</p>
+          <p>This is a second paragraph with additional context about the research methodology and findings, providing further evidence of article-quality content for the extractor.</p>
+        </d-article>
+      </body>
+      </html>
+    `;
+    const result = extractArticleAsMarkdown(
+      html,
+      "https://example.com/papers/index.html"
+    );
+
+    expect(result).not.toBeNull();
+    // Hero image must appear in output, with URL resolved
+    expect(result!.markdown).toContain(
+      "https://example.com/papers/hero.png"
+    );
+  });
+
   it("drops gdoc-image figures containing only interactive widgets (no img)", () => {
     const html = `
       <!DOCTYPE html>
