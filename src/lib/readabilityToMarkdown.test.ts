@@ -285,6 +285,58 @@ describe("extractArticleAsMarkdown", () => {
     expect(result!.markdown).not.toContain("color: red");
   });
 
+  it("converts other -container widgets (e.g. shift-container) into tables too", () => {
+    // Distill papers use multiple class prefixes for similar table widgets.
+    // The detection is based on the `*-container` + `*-header` + `*-row`
+    // pattern, not on a specific class name.
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Paper</title></head>
+      <body>
+        <article>
+          <h1>Paper About Emotion Probes</h1>
+          <p>The following table shows the emotion probe value changes after post-training. Each row represents one emotion category with its corresponding diff, base, and post-trained values.</p>
+          <figure class="gdoc-image">
+            <div class="shift-container">
+              <p class="shift-title">Emotion Probe Changes</p>
+              <div class="shift-header">
+                <span class="shift-col-label">Emotion</span>
+                <span class="shift-col-label-right">Diff</span>
+                <span class="shift-col-label-right">Base</span>
+                <span class="shift-col-label-right">Post-Trained</span>
+              </div>
+              <div class="shift-row">
+                <span class="shift-emotion">brooding</span>
+                <span class="shift-diff-pos">+0.0403</span>
+                <span class="shift-num">-0.0136</span>
+                <span class="shift-num">0.0267</span>
+              </div>
+              <div class="shift-row">
+                <span class="shift-emotion">gloomy</span>
+                <span class="shift-diff-pos">+0.0307</span>
+                <span class="shift-num">0.0023</span>
+                <span class="shift-num">0.0329</span>
+              </div>
+            </div>
+          </figure>
+          <p>The differences shown above are computed as base subtracted from post-trained values, with positive numbers indicating an increase after training.</p>
+        </article>
+      </body>
+      </html>
+    `;
+    const result = extractArticleAsMarkdown(html);
+
+    expect(result).not.toBeNull();
+    expect(result!.markdown).toContain("**Emotion Probe Changes**");
+    // Proper markdown table
+    expect(result!.markdown).toMatch(/\|\s*Emotion\s*\|/);
+    expect(result!.markdown).toMatch(/\|\s*-+\s*\|/);
+    expect(result!.markdown).toContain("brooding");
+    expect(result!.markdown).toContain("gloomy");
+    expect(result!.markdown).toContain("0.0403");
+  });
+
   it("salvages text content from widget figures (when text is meaningful)", () => {
     // Real case from transformer-circuits.pub: a gdoc-image figure
     // contains an embedded HTML widget with structured prompt examples.
