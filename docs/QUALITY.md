@@ -12,7 +12,7 @@
 | `lib/gemini.ts` | 389 | **B** | 25 | Yes |
 | `lib/htmlToMarkdown.ts` | 260 | **B** | 32 | Yes |
 | `lib/markdown.ts` | 110 | **B** | 14 | Yes |
-| `lib/readabilityToMarkdown.ts` | 235 | **B** | 9 | Yes |
+| `lib/readabilityToMarkdown.ts` | 277 | **B** | 10 | Yes |
 | `lib/splitMarkdown.ts` | 104 | **B** | 8 | Yes |
 | `lib/translationMetrics.ts` | 128 | **B** | 22 | Yes |
 | `lib/twitter.ts` | 108 | **B** | 12 | Yes |
@@ -22,7 +22,7 @@
 ## Summary
 - **Total lib files:** 12
 - **Files with tests:** 11 / 12
-- **Total test cases:** 168
-- **Total lib lines:** 2017
+- **Total test cases:** 169
+- **Total lib lines:** 2059
 
 *Last updated: 2026-04-14*

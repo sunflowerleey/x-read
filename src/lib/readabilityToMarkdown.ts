@@ -191,9 +191,17 @@ function preprocessCustomElements(document: any): void {
   document.querySelectorAll("figure.gdoc-image").forEach((fig: any) => {
     const img = fig.querySelector("img");
     if (!img) {
-      // Interactive widget (embedded <html>...</html>) with no image —
-      // can't render as markdown, drop entirely
-      fig.remove();
+      // No image — might be an embedded HTML widget that contains
+      // structured text content (e.g. labeled prompts, data tables).
+      // Strip <style>/<script>/<head> noise and convert to a div so
+      // Readability extracts the visible text.
+      const salvaged = salvageWidgetContent(fig, document);
+      if (salvaged) {
+        fig.replaceWith(salvaged);
+      } else {
+        // Truly no content (just chart canvas / interactive UI) — drop
+        fig.remove();
+      }
       return;
     }
     const caption = fig.querySelector("figcaption");
@@ -214,6 +222,40 @@ function preprocessCustomElements(document: any): void {
     if (caption) newFig.appendChild(caption);
     fig.replaceWith(newFig);
   });
+}
+
+/**
+ * For figures with no <img> (embedded HTML widgets), try to salvage
+ * the visible text content. Strips style/script/head noise. Returns
+ * a new <div> wrapping the cleaned content, or null if nothing
+ * meaningful remains.
+ */
+function salvageWidgetContent(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fig: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  document: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): any | null {
+  // Remove non-content elements from inside the figure
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fig.querySelectorAll("style, script, link, meta, head").forEach((el: any) =>
+    el.remove()
+  );
+
+  // If the figure now has substantive text, wrap it in a div.
+  // Heuristic: at least 50 chars of visible text content.
+  const text = (fig.textContent || "").trim();
+  if (text.length < 50) {
+    return null;
+  }
+
+  const div = document.createElement("div");
+  // Move children — preserves structure (paragraphs, spans, etc.)
+  while (fig.firstChild) {
+    div.appendChild(fig.firstChild);
+  }
+  return div;
 }
 
 /**
