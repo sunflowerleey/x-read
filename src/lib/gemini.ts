@@ -218,7 +218,24 @@ export async function translateChunk(markdown: string): Promise<string> {
     ],
   });
 
-  return response.text ?? "";
+  // Log the finishReason so we can distinguish normal stops from
+  // truncation (MAX_TOKENS), recitation filter (RECITATION), safety
+  // blocks (SAFETY/PROHIBITED_CONTENT/BLOCKLIST), etc.
+  const candidate = response.candidates?.[0];
+  const finishReason = candidate?.finishReason;
+  const text = response.text ?? "";
+  if (finishReason && finishReason !== "STOP") {
+    console.warn(
+      `[gemini-finish] ${JSON.stringify({
+        finishReason,
+        inChars: markdown.length,
+        outChars: text.length,
+        firstLine: markdown.split("\n")[0].slice(0, 60),
+      })}`
+    );
+  }
+
+  return text;
 }
 
 /**
