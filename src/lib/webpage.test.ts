@@ -143,4 +143,28 @@ Markdown Content:
     expect(markdown).toContain("# Hello");
     expect(markdown).toContain("World");
   });
+
+  it("falls back when Jina connection fails at network level (ECONNRESET)", async () => {
+    // Suppress expected warning log during the test
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const directHtml = `<html>
+<head><title>Fallback Success</title></head>
+<body><h1>Content</h1></body>
+</html>`;
+
+    // First call (Jina) throws network error; second call (direct) succeeds
+    vi.spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(new Response(directHtml, { status: 200 }));
+
+    const { content, markdown } = await fetchWebpage("https://example.com/x");
+
+    expect(content.title).toBe("Fallback Success");
+    expect(markdown).toContain("# Content");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Jina fetch failed")
+    );
+    warnSpy.mockRestore();
+  });
 });
