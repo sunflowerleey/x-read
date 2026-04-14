@@ -89,6 +89,100 @@ describe("extractArticleAsMarkdown", () => {
     expect(result!.markdown).not.toContain("Functionin");
   });
 
+  it("converts prompt-block divs to fenced code blocks (Distill/Anthropic format)", () => {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Paper With Prompts</title></head>
+      <body>
+        <article>
+          <h1>Paper With Prompts</h1>
+          <p>We evaluated the following prompt template against our test set of user queries to understand how the model responds to various input patterns.</p>
+          <div class="prompt-block">
+            <p>Human: {prompt}</p>
+            <br/>
+            <p>Assistant:</p>
+          </div>
+          <p>This simple prompt template is designed to elicit standard conversational responses from our assistant model under a wide range of conditions.</p>
+        </article>
+      </body>
+      </html>
+    `;
+    const result = extractArticleAsMarkdown(html);
+
+    expect(result).not.toBeNull();
+    // Prompt content should appear as a code block, not as regular paragraphs
+    expect(result!.markdown).toContain("Human: {prompt}");
+    expect(result!.markdown).toContain("Assistant:");
+    // Should be wrapped in fenced code block (```) so translation pipeline skips it
+    expect(result!.markdown).toMatch(/```[\s\S]*Human:[\s\S]*Assistant:[\s\S]*```/);
+  });
+
+  it("merges figcaption into img alt for gdoc-image figures", () => {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Figure Paper</title></head>
+      <body>
+        <article>
+          <h1>Paper With Figures</h1>
+          <p>Below we show our main result, which demonstrates that emotion vectors activate in a predictable manner across diverse prompts from our evaluation dataset.</p>
+          <figure class="gdoc-image" key="hero-final">
+            <img src="hero.png"/>
+            <figcaption class="text-caption"><span style="font-weight: bold;">Figure 1: </span>Dataset examples that evoke strong activation for various emotion vectors.</figcaption>
+          </figure>
+          <p>This figure illustrates the key patterns we observed across all experimental conditions in our comprehensive evaluation protocol.</p>
+        </article>
+      </body>
+      </html>
+    `;
+    const result = extractArticleAsMarkdown(
+      html,
+      "https://example.com/paper/index.html"
+    );
+
+    expect(result).not.toBeNull();
+    // Image should be present with URL resolved
+    expect(result!.markdown).toContain(
+      "https://example.com/paper/hero.png"
+    );
+    // The figcaption text should be in the alt attribute (visible as [Figure 1: ...] in markdown)
+    expect(result!.markdown).toMatch(
+      /!\[.*Figure 1.*emotion vectors.*\]\(https:\/\/example\.com\/paper\/hero\.png\)/
+    );
+  });
+
+  it("drops gdoc-image figures containing only interactive widgets (no img)", () => {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><title>Widget Paper</title></head>
+      <body>
+        <article>
+          <h1>Paper With Interactive Widget</h1>
+          <p>This is a substantial paragraph of research content that sets the context for the interactive visualization that follows in our analysis.</p>
+          <figure class="gdoc-image" key="interactive-chart">
+            <div class="widget-container">
+              <script>var chartConfig = { /* interactive */ };</script>
+              <div id="chart"></div>
+            </div>
+          </figure>
+          <p>The widget above illustrates the pattern — but since it can't render in markdown, the final output should simply omit it rather than produce garbled text.</p>
+        </article>
+      </body>
+      </html>
+    `;
+    const result = extractArticleAsMarkdown(html);
+
+    expect(result).not.toBeNull();
+    // Widget HTML should NOT appear as garbled markdown
+    expect(result!.markdown).not.toContain("chartConfig");
+    expect(result!.markdown).not.toContain("widget-container");
+    // Surrounding prose should still be present
+    expect(result!.markdown).toContain("substantial paragraph");
+    expect(result!.markdown).toContain("can't render in markdown");
+  });
+
   it("converts inline formatting (bold, italic, links, inline code)", () => {
     const html = `
       <!DOCTYPE html>

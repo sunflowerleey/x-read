@@ -35,6 +35,10 @@ export function extractArticleAsMarkdown(
 ): ExtractedArticle | null {
   const { document } = parseHTML(html);
 
+  // Normalize custom elements (Distill / Google Docs / Anthropic blog style)
+  // BEFORE Readability runs — so it sees clean figure/pre elements.
+  preprocessCustomElements(document);
+
   // Set <base href> so Readability/node-html-markdown resolve relative URLs
   if (baseUrl) {
     try {
@@ -81,6 +85,69 @@ export function extractArticleAsMarkdown(
     title: article.title ?? undefined,
     markdown,
   };
+}
+
+/**
+ * Normalize custom elements that Readability + node-html-markdown don't
+ * handle well by default. Called on the parsed document before Readability
+ * runs its article-extraction pass.
+ *
+ * Two common patterns from Distill.pub / Anthropic research papers:
+ *
+ * 1. `<figure class="gdoc-image">`
+ *    - Usually contains `<img>` + `<figcaption>` — merge caption into alt
+ *    - Sometimes contains embedded `<html>` widgets with no `<img>` —
+ *      strip entirely (interactive widgets can't render in markdown)
+ *    - Always strip any nested <html>/<head>/<body>/DOCTYPE that confuse
+ *      the DOM parser
+ *
+ * 2. `<div class="prompt-block">`
+ *    - LLM prompt examples like "Human: {prompt}\nAssistant:"
+ *    - Convert to `<pre><code>` so the markdown converter emits a fenced
+ *      code block, which our translation pipeline then skips entirely
+ *      (code blocks bypass Gemini — see splitAroundCodeBlocks).
+ */
+// Using `any` here because linkedom's Element type doesn't perfectly match
+// lib.dom's Element type — querySelector/createElement work at runtime but
+// the structural typing diverges. This function only uses standard DOM APIs.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function preprocessCustomElements(document: any): void {
+  // 1. prompt-block → <pre><code>...</code></pre>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  document.querySelectorAll(".prompt-block").forEach((el: any) => {
+    const text = (el.textContent || "").trim();
+    if (!text) {
+      el.remove();
+      return;
+    }
+    const pre = document.createElement("pre");
+    const code = document.createElement("code");
+    code.textContent = text;
+    pre.appendChild(code);
+    el.replaceWith(pre);
+  });
+
+  // 2. gdoc-image normalization
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  document.querySelectorAll("figure.gdoc-image").forEach((fig: any) => {
+    const img = fig.querySelector("img");
+    if (!img) {
+      // Interactive widget (embedded <html>...</html>) with no image —
+      // can't render as markdown, drop entirely
+      fig.remove();
+      return;
+    }
+    const caption = fig.querySelector("figcaption");
+    if (caption && !img.getAttribute("alt")) {
+      img.setAttribute("alt", (caption.textContent || "").trim());
+    }
+    // Strip any embedded DOCTYPE/html/head/body/script/style noise left
+    // inside the figure. Only keep the img (and optionally figcaption).
+    const newFig = document.createElement("figure");
+    newFig.appendChild(img);
+    if (caption) newFig.appendChild(caption);
+    fig.replaceWith(newFig);
+  });
 }
 
 /**
