@@ -97,7 +97,7 @@ describe("streamTranslateToChineseMarkdown", () => {
     const callArgs = mockGenerateContentStream.mock.calls[0][0];
     const promptText = callArgs.contents[0].parts[0].text;
     expect(promptText).toContain("## Special Content");
-    expect(promptText).toContain("严格逐字翻译");
+    expect(promptText).toContain("英语思维");
   });
 });
 
@@ -154,38 +154,11 @@ describe("translateChunk", () => {
     }
   });
 
-  it("retries with stricter prompt when output is suspiciously short", async () => {
-    process.env.GEMINI_API_KEY = "test-key";
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    // First call: short output (Gemini summarized). finishReason=STOP.
-    // Second call (retry with strict prompt): longer, proper translation.
-    const longInput = "Hello world. ".repeat(500); // ~6500 chars
-    const shortOutput = "你好。"; // way too short — ratio ~0.001
-    const fullOutput = "你好世界。".repeat(500); // proper length
-
-    mockGenerateContent
-      .mockResolvedValueOnce({
-        text: shortOutput,
-        candidates: [{ finishReason: "STOP" }],
-      })
-      .mockResolvedValueOnce({
-        text: fullOutput,
-        candidates: [{ finishReason: "STOP" }],
-      });
-
-    const result = await translateChunk(longInput);
-
-    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
-    expect(result).toBe(fullOutput);
-    warnSpy.mockRestore();
-  });
-
-  it("does not retry when output is a reasonable length", async () => {
+  it("makes a single Gemini call per text segment (no retry)", async () => {
     process.env.GEMINI_API_KEY = "test-key";
 
     const input = "Hello. ".repeat(500); // ~3500 chars
-    const output = "你好".repeat(1000); // ~2000 chars, ratio ~0.57 — normal
+    const output = "你好".repeat(1000);
 
     mockGenerateContent.mockResolvedValueOnce({
       text: output,
@@ -194,21 +167,7 @@ describe("translateChunk", () => {
 
     await translateChunk(input);
 
-    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not retry for short input (under 2000 chars) even at low ratio", async () => {
-    process.env.GEMINI_API_KEY = "test-key";
-
-    // Short input (>100 chars so not skipped, but <2000 so no retry)
-    const input = "Short content ".repeat(50); // ~700 chars
-    mockGenerateContent.mockResolvedValueOnce({
-      text: "OK",
-      candidates: [{ finishReason: "STOP" }],
-    });
-
-    await translateChunk(input);
-
+    // Always exactly one call — no retry logic
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
   });
 
@@ -253,33 +212,10 @@ Here is some trailing text that should also be translated. This paragraph also n
     expect(mockGenerateContent).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps first result if retry is not meaningfully longer", async () => {
-    process.env.GEMINI_API_KEY = "test-key";
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    const longInput = "Hello. ".repeat(500);
-    const short1 = "这是一个简短翻译"; // 8 chars
-    const short2 = "这是另一简短译文"; // 8 chars, same length — retry isn't >1.3x
-
-    mockGenerateContent
-      .mockResolvedValueOnce({
-        text: short1,
-        candidates: [{ finishReason: "STOP" }],
-      })
-      .mockResolvedValueOnce({
-        text: short2,
-        candidates: [{ finishReason: "STOP" }],
-      });
-
-    const result = await translateChunk(longInput);
-
-    expect(result).toBe(short1); // kept the first since retry wasn't >1.3x
-    warnSpy.mockRestore();
-  });
 });
 
-describe("TRANSLATION_PROMPT academic framing", () => {
-  it("includes academic context to prevent safety soft-refusals", async () => {
+describe("TRANSLATION_PROMPT structure", () => {
+  it("uses 英语思维 methodology and structural-preservation rules", async () => {
     process.env.GEMINI_API_KEY = "test-key";
     mockGenerateContentStream.mockResolvedValueOnce(
       (async function* () {
@@ -294,15 +230,16 @@ describe("TRANSLATION_PROMPT academic framing", () => {
 
     const promptText =
       mockGenerateContentStream.mock.calls[0][0].contents[0].parts[0].text;
-    // Must frame content as academic to prevent summarization of examples
-    expect(promptText).toMatch(/学术|academic/i);
-    // Must contain strict anti-summarization language
-    expect(promptText).toMatch(/严禁总结|必须完整|不得.*省略/);
+    expect(promptText).toContain("英语思维");
+    // Must instruct to preserve heading/paragraph structure
+    expect(promptText).toMatch(/相同数量的标题|每个段落/);
+    // Must instruct to preserve markdown formatting
+    expect(promptText).toContain("markdown");
   });
 });
 
 describe("prompt", () => {
-  it("instructs Gemini to preserve image markdown in place", async () => {
+  it("instructs Gemini to preserve markdown formatting including images", async () => {
     process.env.GEMINI_API_KEY = "test-key";
 
     mockGenerateContentStream.mockResolvedValueOnce(
@@ -318,9 +255,9 @@ describe("prompt", () => {
 
     const promptText =
       mockGenerateContentStream.mock.calls[0][0].contents[0].parts[0].text;
-    // Must explicitly tell Gemini to preserve image lines
-    expect(promptText).toMatch(/图片.*原样|preserve.*image/i);
-    expect(promptText).toContain("![");
+    // Must instruct Gemini to preserve markdown formatting (images included)
+    expect(promptText).toContain("markdown 格式");
+    expect(promptText).toMatch(/图片|image/i);
   });
 });
 
