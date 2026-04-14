@@ -258,9 +258,14 @@ function salvageWidgetContent(
     return formatPromptsWidget(promptsContainer, document);
   }
 
-  const prefsContainer = fig.querySelector(".prefs-container");
-  if (prefsContainer) {
-    return formatPrefsWidget(prefsContainer, document);
+  // Generic table-like container detection: any element whose class name
+  // ends with "-container" AND has a child with class ending in "-header"
+  // AND children with class ending in "-row" is treated as a data table.
+  // Covers .prefs-container, .shift-container, and similar Distill widgets
+  // that share the same title/header/row/caption structure.
+  const tableContainer = findTableLikeContainer(fig);
+  if (tableContainer) {
+    return formatTableWidget(tableContainer, document);
   }
 
   // Generic widget: wrap in a blockquote so it renders with a visible
@@ -350,18 +355,38 @@ function formatPromptsWidget(
 }
 
 /**
- * Convert a .prefs-container widget (data table) into a real <table>.
- * Structure:
- *   .prefs-title              → caption above table
- *   .prefs-group-header (opt) → top-row group labels (e.g. Post-Trained vs Base)
- *   .prefs-header             → column labels
- *   .prefs-row × N            → data rows (mix of .prefs-category, -description,
- *                                -elo, -num children — order matters)
- *   .prefs-caption (opt)      → italic caption below
+ * Find a "table-like" container nested inside the figure: an element
+ * whose class ends in "-container" AND has a child whose class ends in
+ * "-header" AND children whose class ends in "-row".
+ *
+ * Distill papers use multiple variations (.prefs-container, .shift-container,
+ * etc.) — they all share this title/header/row/caption shape. Returns the
+ * container element or null.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function findTableLikeContainer(fig: any): any | null {
+  const candidates = fig.querySelectorAll('[class$="-container"], [class*="-container "]');
+  for (const candidate of candidates) {
+    const hasHeader = !!candidate.querySelector('[class$="-header"], [class*="-header "]');
+    const hasRows = candidate.querySelectorAll('[class$="-row"], [class*="-row "]').length > 0;
+    if (hasHeader && hasRows) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Convert a generic table-like container into a real <table>.
+ *
+ * Expected structure (class prefix varies, e.g. "prefs", "shift"):
+ *   .{prefix}-title              → bold paragraph above table
+ *   .{prefix}-group-header (opt) → top-row group labels (e.g. "Post-Trained")
+ *   .{prefix}-header             → column labels
+ *   .{prefix}-row × N            → data rows (children order = column order)
+ *   .{prefix}-caption (opt)      → italic paragraph below
  *
  * node-html-markdown converts <table> to GFM table syntax.
  */
-function formatPrefsWidget(
+function formatTableWidget(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   container: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -370,8 +395,8 @@ function formatPrefsWidget(
 ): any {
   const wrapper = document.createElement("div");
 
-  // Title → bold paragraph above the table
-  const titleEl = container.querySelector(".prefs-title");
+  // Title → bold paragraph
+  const titleEl = container.querySelector('[class$="-title"], [class*="-title "]');
   if (titleEl) {
     const titleText = (titleEl.textContent || "").trim();
     if (titleText) {
@@ -386,21 +411,31 @@ function formatPrefsWidget(
   const table = document.createElement("table");
   const thead = document.createElement("thead");
 
-  // Build header row(s)
-  const headerLabels = Array.from(
-    container.querySelectorAll(".prefs-header > *")
+  // The header is the *-header child whose class does NOT end in -group-header
+  // (otherwise our [class$="-header"] selector also matches the group-header).
+  const groupHeaderEl = container.querySelector('[class$="-group-header"], [class*="-group-header "]');
+  const groupLabels = groupHeaderEl
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ).map((el: any) => (el.textContent || "").trim());
+    ? Array.from(groupHeaderEl.children).map((el: any) => (el.textContent || "").trim())
+    : [];
 
-  const groupLabels = Array.from(
-    container.querySelectorAll(".prefs-group-header > *")
-  )
+  // Find all *-header elements, skip the group-header to get the actual header
+  const allHeaders = container.querySelectorAll('[class$="-header"], [class*="-header "]');
+  let headerEl = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const el of allHeaders as any[]) {
+    if (el !== groupHeaderEl) {
+      headerEl = el;
+      break;
+    }
+  }
+  const headerLabels = headerEl
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((el: any) => (el.textContent || "").trim());
+    ? Array.from(headerEl.children).map((el: any) => (el.textContent || "").trim())
+    : [];
 
   if (headerLabels.length > 0) {
-    // GFM tables don't support multi-row headers. If we have group labels,
-    // merge them into the column labels: "Post-Trained Elo", "Base Elo", etc.
+    // GFM tables don't support multi-row headers. Merge group labels in.
     const finalHeaders =
       groupLabels.length > 0 && groupLabels.some((g) => g.length > 0)
         ? mergeGroupHeaders(headerLabels, groupLabels)
@@ -416,12 +451,10 @@ function formatPrefsWidget(
     table.appendChild(thead);
   }
 
-  // Body rows
   const tbody = document.createElement("tbody");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  container.querySelectorAll(".prefs-row").forEach((row: any) => {
+  container.querySelectorAll('[class$="-row"], [class*="-row "]').forEach((row: any) => {
     const tr = document.createElement("tr");
-    // Each child <span> is a cell; preserve order
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Array.from(row.children).forEach((cell: any) => {
       const td = document.createElement("td");
@@ -431,11 +464,10 @@ function formatPrefsWidget(
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
-
   wrapper.appendChild(table);
 
   // Caption below table
-  const caption = container.querySelector(".prefs-caption");
+  const caption = container.querySelector('[class$="-caption"], [class*="-caption "]');
   if (caption) {
     const captionText = (caption.textContent || "").trim();
     if (captionText) {
