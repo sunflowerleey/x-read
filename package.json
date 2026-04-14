@@ -18,8 +18,11 @@
   },
   "dependencies": {
     "@google/genai": "^1.48.0",
+    "@mozilla/readability": "^0.6.0",
     "@tailwindcss/typography": "^0.5.19",
+    "linkedom": "^0.18.12",
     "next": "16.2.2",
+    "node-html-markdown": "^2.0.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
