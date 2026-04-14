@@ -229,11 +229,23 @@ function deduplicateHeadings(blocks: ExtractedBlock[]): ExtractedBlock[] {
   return result;
 }
 
-/** Check if two strings are similar (>80% character overlap after normalization). */
-function isSimilarText(a: string, b: string): boolean {
+/**
+ * Check if two strings are similar (near-duplicates).
+ *
+ * Handles the common Distill-style pattern where <title> and <h1> both
+ * get extracted but have minor differences like missing spaces from
+ * HTML tag boundaries (e.g. "Function in" vs "Functionin").
+ */
+export function isSimilarText(a: string, b: string): boolean {
   const na = a.toLowerCase().replace(/\s+/g, " ").trim();
   const nb = b.toLowerCase().replace(/\s+/g, " ").trim();
   if (na === nb) return true;
+
+  // Remove all whitespace — catches "Function in" vs "Functionin" (typo
+  // from HTML tag boundaries when adjacent <span>s are concatenated).
+  const aCompact = na.replace(/\s+/g, "");
+  const bCompact = nb.replace(/\s+/g, "");
+  if (aCompact === bCompact) return true;
 
   const longer = na.length > nb.length ? na : nb;
   const shorter = na.length > nb.length ? nb : na;
