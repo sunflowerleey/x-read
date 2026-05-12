@@ -344,11 +344,33 @@ export async function translateChunk(markdown: string): Promise<string> {
           })}`
         );
       }
-      return text;
+      // Preserve the original segment's leading and trailing whitespace.
+      // Gemini routinely strips trailing newlines, which then makes the
+      // following code segment's opening ``` land on the previous line —
+      // breaking fence recognition and flipping fence/non-fence rendering
+      // for every block downstream.
+      return preserveBoundaryWhitespace(seg.content, text);
     })
   );
 
   return translatedSegments.join("");
+}
+
+/** Re-attach the original segment's leading and trailing whitespace to a
+ *  translated body. The body is trimmed (in case the model added stray
+ *  newlines of its own) and then sandwiched between the exact whitespace
+ *  the original segment had at its boundaries. Keeps separator newlines
+ *  between text and code segments aligned with the source. */
+export function preserveBoundaryWhitespace(
+  original: string,
+  translated: string,
+): string {
+  const leadMatch = original.match(/^\s*/);
+  const trailMatch = original.match(/\s*$/);
+  const lead = leadMatch ? leadMatch[0] : "";
+  const trail = trailMatch ? trailMatch[0] : "";
+  const body = translated.replace(/^\s+/, "").replace(/\s+$/, "");
+  return lead + body + trail;
 }
 
 /**
