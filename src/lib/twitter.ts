@@ -1,4 +1,9 @@
-import { ContentData } from "./types";
+import type {
+  ArticleMediaEntity,
+  ContentData,
+  DraftJsBlock,
+  DraftJsEntityMapEntry,
+} from "./types";
 import { cleanJinaMarkdown } from "./cleanJinaMarkdown";
 
 function extractSubtitle(
@@ -80,6 +85,15 @@ export async function fetchTweet(tweetId: string): Promise<ContentData> {
     isArticle: !!t.article,
     articleTitle: t.article?.title || undefined,
     articleSubtitle: extractSubtitle(t.article?.preview_text, t.article?.title),
+    articleBlocks: Array.isArray(t.article?.content?.blocks)
+      ? (t.article.content.blocks as DraftJsBlock[])
+      : undefined,
+    articleEntityMap: Array.isArray(t.article?.content?.entityMap)
+      ? (t.article.content.entityMap as DraftJsEntityMapEntry[])
+      : undefined,
+    articleMediaEntities: Array.isArray(t.article?.media_entities)
+      ? (t.article.media_entities as ArticleMediaEntity[])
+      : undefined,
   };
 }
 

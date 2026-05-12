@@ -11,6 +11,22 @@ import {
   articleToMarkdown,
   webpageToMarkdown,
 } from "@/lib/markdown";
+import { draftjsToMarkdown } from "@/lib/draftjsToMarkdown";
+import type { ContentData } from "@/lib/types";
+
+async function fetchArticleBody(
+  content: ContentData,
+  canonicalUrl: string,
+): Promise<string> {
+  if (content.articleBlocks && content.articleBlocks.length > 0) {
+    return draftjsToMarkdown(
+      content.articleBlocks,
+      content.articleEntityMap ?? [],
+      content.articleMediaEntities ?? [],
+    );
+  }
+  return fetchArticleContent(canonicalUrl);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,7 +44,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Twitter/X URLs get special handling with FxTwitter + Jina
     if (isTwitterUrl(trimmed)) {
       return handleTwitter(trimmed);
     }
@@ -51,30 +66,14 @@ async function handleTwitter(url: string) {
   }
 
   const canonicalUrl = `https://x.com/${parsed.screenName}/article/${parsed.tweetId}`;
-
-  // Article URL — parallel fetch
-  if (parsed.isArticle) {
-    const [content, articleBody] = await Promise.all([
-      fetchTweet(parsed.tweetId),
-      fetchArticleContent(canonicalUrl),
-    ]);
-    const markdown = articleToMarkdown(articleBody, content);
-    if (!content.language || content.language === "unknown") {
-      const sample = articleBody.slice(0, 500);
-      const chineseChars = (sample.match(/[\u4e00-\u9fff]/g) || []).length;
-      content.language = chineseChars > sample.length * 0.1 ? "zh" : "en";
-    }
-    return NextResponse.json({ content, markdown });
-  }
-
-  // Regular tweet — may discover it's an article
   const content = await fetchTweet(parsed.tweetId);
-  if (content.isArticle) {
-    const articleBody = await fetchArticleContent(canonicalUrl);
+
+  if (parsed.isArticle || content.isArticle) {
+    const articleBody = await fetchArticleBody(content, canonicalUrl);
     const markdown = articleToMarkdown(articleBody, content);
     if (!content.language || content.language === "unknown") {
       const sample = articleBody.slice(0, 500);
-      const chineseChars = (sample.match(/[\u4e00-\u9fff]/g) || []).length;
+      const chineseChars = (sample.match(/[一-鿿]/g) || []).length;
       content.language = chineseChars > sample.length * 0.1 ? "zh" : "en";
     }
     return NextResponse.json({ content, markdown });
