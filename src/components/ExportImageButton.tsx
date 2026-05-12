@@ -9,6 +9,46 @@ interface Props {
   label?: string;
 }
 
+const TRANSPARENT_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+/** Replace <img> srcs that point to a different origin (Twitter CDN, etc.)
+ *  with a same-origin proxy URL so html-to-image's fetch() can read them
+ *  without hitting CORS. Returns a restore() function that puts the original
+ *  src values back, so the on-screen UI stays unchanged after export. */
+async function reroute(node: HTMLElement): Promise<() => void> {
+  const sameOrigin = window.location.origin;
+  const swaps: { img: HTMLImageElement; original: string }[] = [];
+
+  for (const img of Array.from(node.querySelectorAll("img"))) {
+    const src = img.src;
+    if (!src || src.startsWith("data:")) continue;
+    let urlOrigin: string;
+    try {
+      urlOrigin = new URL(src).origin;
+    } catch {
+      continue;
+    }
+    if (urlOrigin === sameOrigin) continue;
+    swaps.push({ img, original: src });
+    img.src = `/api/image-proxy?url=${encodeURIComponent(src)}`;
+  }
+
+  await Promise.all(
+    swaps.map(({ img }) =>
+      img.decode().catch(() => {
+        /* swallow — imagePlaceholder will cover failures */
+      }),
+    ),
+  );
+
+  return () => {
+    for (const { img, original } of swaps) {
+      img.src = original;
+    }
+  };
+}
+
 export default function ExportImageButton({
   target,
   filename,
@@ -20,24 +60,33 @@ export default function ExportImageButton({
     const node = target.current;
     if (!node || busy) return;
     setBusy(true);
+    let restore: (() => void) | null = null;
     try {
+      restore = await reroute(node);
+
       const isDark = document.documentElement.classList.contains("dark");
       const backgroundColor = isDark ? "#1e293b" : "#ffffff";
       const dataUrl = await toPng(node, {
         backgroundColor,
         pixelRatio: 2,
-        cacheBust: true,
+        cacheBust: false,
+        imagePlaceholder: TRANSPARENT_PNG,
       });
       const a = document.createElement("a");
       a.href = dataUrl;
       a.download = filename;
       a.click();
     } catch (err) {
-      console.error("Failed to export image", err);
-      alert(
-        "导出图片失败，部分跨域图片可能无法渲染。详细信息请查看控制台。",
-      );
+      const message =
+        err instanceof Error
+          ? `${err.name}: ${err.message}`
+          : typeof err === "string"
+            ? err
+            : "unknown error";
+      console.error("Failed to export image:", message, err);
+      alert(`导出图片失败：${message}`);
     } finally {
+      restore?.();
       setBusy(false);
     }
   }
