@@ -182,6 +182,37 @@ describe("translateChunk", () => {
     expect(mockGenerateContent).not.toHaveBeenCalled();
   });
 
+  it("preserves segment-boundary whitespace when Gemini trims trailing newlines", async () => {
+    // Repro: Gemini routinely returns text without the original's trailing
+    // blank line. Without restoration the next code segment's opening ```
+    // lands on the same line as the previous paragraph and the fence is
+    // no longer recognized by the markdown renderer.
+    process.env.GEMINI_API_KEY = "test-key";
+
+    mockGenerateContent.mockResolvedValueOnce({
+      text: "这是一段足够长的中文译文，结尾被模型剪掉了换行。",
+      candidates: [{ finishReason: "STOP" }],
+    });
+    mockGenerateContent.mockResolvedValueOnce({
+      text: "下一段译文，同样没有前后空白。",
+      candidates: [{ finishReason: "STOP" }],
+    });
+
+    const input =
+      "Some leading paragraph that is plenty long to exceed the trivially-short-skip threshold and must be translated.\n\n" +
+      "```python\nprint('verbatim')\n```\n\n" +
+      "Some trailing paragraph that is plenty long to exceed the trivially-short-skip threshold and must be translated.";
+
+    const result = await translateChunk(input);
+
+    // Both fences must remain at the start of their own line.
+    const lines = result.split("\n");
+    const fenceLines = lines.filter((l) => /^```/.test(l));
+    expect(fenceLines).toHaveLength(2);
+    // No ``` glued to the end of a non-fence line.
+    expect(result).not.toMatch(/[^\n]```/);
+  });
+
   it("passes code blocks through without translating them", async () => {
     process.env.GEMINI_API_KEY = "test-key";
 
