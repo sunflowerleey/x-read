@@ -3,10 +3,11 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import DownloadButton from "./DownloadButton";
+import ExportImageButton from "./ExportImageButton";
 import { splitMarkdownIntoBlocks } from "@/lib/splitMarkdown";
 import { alignBlocks } from "@/lib/alignBlocks";
 import { escapeNonHtmlTags } from "@/lib/escapeHtml";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useRef } from "react";
 
 const REMARK_PLUGINS = [remarkGfm];
 
@@ -56,6 +57,8 @@ export default function ContentDisplay({
     return alignBlocks(enBlocks, zhBlocks);
   }, [originalMarkdown, translatedMarkdown]);
 
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
   if (!isSideBySide) {
     return (
       <div className="max-w-3xl mx-auto">
@@ -63,12 +66,21 @@ export default function ContentDisplay({
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
             English Original
           </h2>
-          <DownloadButton
-            markdown={originalMarkdown}
-            filename={`tweet-${tweetHandle}-en.md`}
-          />
+          <div className="flex items-center gap-2">
+            <ExportImageButton
+              target={cardRef}
+              filename={`tweet-${tweetHandle}-en.png`}
+            />
+            <DownloadButton
+              markdown={originalMarkdown}
+              filename={`tweet-${tweetHandle}-en.md`}
+            />
+          </div>
         </div>
-        <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6">
+        <div
+          ref={cardRef}
+          className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6"
+        >
           <MarkdownBlock markdown={originalMarkdown} />
         </div>
       </div>
@@ -82,10 +94,18 @@ export default function ContentDisplay({
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
             English Original
           </h2>
-          <DownloadButton
-            markdown={originalMarkdown}
-            filename={`tweet-${tweetHandle}-en.md`}
-          />
+          <div className="flex items-center gap-2">
+            {hasContent && !isTranslating && (
+              <ExportImageButton
+                target={cardRef}
+                filename={`tweet-${tweetHandle}.png`}
+              />
+            )}
+            <DownloadButton
+              markdown={originalMarkdown}
+              filename={`tweet-${tweetHandle}-en.md`}
+            />
+          </div>
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -109,7 +129,10 @@ export default function ContentDisplay({
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+      <div
+        ref={cardRef}
+        className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden"
+      >
         {alignedPairs.map(([enBlock, zhBlock], i) => (
           <div
             key={i}
