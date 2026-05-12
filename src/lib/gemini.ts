@@ -112,12 +112,38 @@ export function splitIntoChunks(
   return mergeSmallChunks(expanded);
 }
 
-/** Split text at paragraph boundaries into chunks <= maxSize. */
+/** Split text at paragraph boundaries into chunks <= maxSize.
+ *  Fence-aware: blank lines inside a fenced code block do not start a new
+ *  paragraph, so the code block stays in one piece. */
 function splitByParagraphs(text: string, maxSize: number): string[] {
-  const paras = text.split(/\n\n+/);
+  const lines = text.split("\n");
+  const paras: string[] = [];
+  let buf: string[] = [];
+  let inFence = false;
+
+  const flush = () => {
+    if (buf.length > 0) {
+      paras.push(buf.join("\n"));
+      buf = [];
+    }
+  };
+
+  for (const line of lines) {
+    if (/^`{3,}/.test(line)) {
+      inFence = !inFence;
+      buf.push(line);
+      continue;
+    }
+    if (!inFence && line.trim() === "") {
+      flush();
+    } else {
+      buf.push(line);
+    }
+  }
+  flush();
+
   const chunks: string[] = [];
   let current = "";
-
   for (const para of paras) {
     if (current.length === 0) {
       current = para;
@@ -167,13 +193,25 @@ function mergeSmallChunks(chunks: string[]): string[] {
   return merged;
 }
 
+/** Split markdown on lines that start with `prefix` (e.g. `## `).
+ *  Fence-aware: a heading-looking line inside a fenced code block (`\`\`\`…`)
+ *  is *not* a split point. Without this, a code block whose payload contains
+ *  `## Foo` would get cut in half — the opening fence ends up in one chunk
+ *  and the closing fence in the next, breaking `splitAroundCodeBlocks` and
+ *  letting the model translate fence content as real markdown. */
 function splitByHeadingLevel(markdown: string, prefix: string): string[] {
   const lines = markdown.split("\n");
   const chunks: string[] = [];
   let current: string[] = [];
+  let inFence = false;
 
   for (const line of lines) {
-    if (line.startsWith(prefix) && current.length > 0) {
+    if (/^`{3,}/.test(line)) {
+      inFence = !inFence;
+      current.push(line);
+      continue;
+    }
+    if (!inFence && line.startsWith(prefix) && current.length > 0) {
       chunks.push(current.join("\n"));
       current = [line];
     } else {
