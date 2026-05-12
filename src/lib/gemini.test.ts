@@ -329,6 +329,51 @@ describe("splitIntoChunks", () => {
     // Under MAX_CHUNK_SIZE, no further splitting
     expect(chunks).toHaveLength(1);
   });
+
+  it("does not split inside a fenced code block whose payload contains '## '", () => {
+    // Reproduces the bug where an article body has a fenced code block
+    // wrapping a sample `## Rule N — ...` heading. Without fence awareness
+    // the chunker cut the code block in half, breaking splitAroundCodeBlocks
+    // downstream and causing the translator to render fence content as real
+    // markdown.
+    const section1 =
+      "## Real Heading One\n\n" + "Some context paragraph. ".repeat(100);
+    const fenced = "```\n## Rule 5 — Sample heading inside code\nBody line one.\nBody line two.\n```";
+    const section2 =
+      "## Real Heading Two\n\n" + "More context paragraph. ".repeat(100);
+    const md = `${section1}\n\n${fenced}\n\n${section2}`;
+
+    const chunks = splitIntoChunks(md, 10);
+
+    // The fenced block must live entirely inside one chunk, never split.
+    const owningChunks = chunks.filter((c) => c.includes("Rule 5 — Sample"));
+    expect(owningChunks).toHaveLength(1);
+    expect(owningChunks[0]).toContain("```\n## Rule 5 — Sample");
+    expect(owningChunks[0]).toContain("Body line two.\n```");
+
+    // Every chunk should still have balanced fences (even number of ``` lines).
+    for (const chunk of chunks) {
+      const fenceCount = (chunk.match(/^```/gm) || []).length;
+      expect(fenceCount % 2).toBe(0);
+    }
+  });
+
+  it("keeps fenced code block intact when paragraph-splitting an oversized chunk", () => {
+    // Trigger the paragraph-level split path (chunk > MAX_CHUNK_SIZE with no
+    // sub-headings) and verify code fences survive.
+    const para = "Lots of prose. ".repeat(800); // ~12KB
+    const fenced = "```\nline1\n\nline2 with blank above\n```";
+    const md = `## Big\n\n${para}\n\n${fenced}\n\n${para}\n\n${para}`;
+    const chunks = splitIntoChunks(md, 10);
+    for (const chunk of chunks) {
+      const fenceCount = (chunk.match(/^```/gm) || []).length;
+      expect(fenceCount % 2).toBe(0);
+    }
+    // Fence content survives intact in some chunk.
+    const owning = chunks.filter((c) => c.includes("line1"));
+    expect(owning).toHaveLength(1);
+    expect(owning[0]).toContain("line2 with blank above");
+  });
 });
 
 describe("removeHallucinatedImages", () => {
